@@ -1,0 +1,7 @@
+{
+  "name": "Copy of AutoShadow AI",
+  "description": "Una aplicación impulsada por Gemini para editar fotos de autos, añadir sombras realistas, generar nuevos vehículos, analizar especificaciones técnicas y realizar edición libre de imágenes mediante prompts de texto.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
