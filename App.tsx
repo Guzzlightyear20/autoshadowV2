@@ -1,8 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { AppMode, AspectRatio, ImageSize, LoadingState, BatchImageItem } from './types';
-import { editCarImage, generateCarImage, analyzeCarImage, composeCarWithBackground } from './services/geminiService';
+import { editCarImage, generateCarImage, analyzeCarImage, analyzeCarImageStream, composeCarWithBackground } from './services/geminiService';
 import { fileToBase64, downloadResizedImage, downloadAllBatchImages, resizeBase64Image, processWithConcurrency } from './utils';
 import { Button } from './components/Button';
+import BeforeAfterSlider from './components/BeforeAfterSlider';
 
 // Icons as simple SVGs
 const UploadIcon = () => (
@@ -294,8 +295,21 @@ const App: React.FC = () => {
       } else if (mode === AppMode.ANALYZE) {
         if (!selectedFile) throw new Error("Selecciona una imagen primero.");
         const base64 = await fileToBase64(selectedFile);
-        const analysis = await analyzeCarImage(base64, promptToUse || "Analiza este vehículo: marca, modelo estimado, color y características visibles.", selectedFile.type);
-        setResultText(analysis);
+        const analysisPrompt = promptToUse || "Analiza este vehículo: marca, modelo estimado, color y características visibles.";
+
+        // Show streaming text word-by-word; fall back to single-shot on error
+        setResultText('');
+        setLoading({ isLoading: false, message: '' }); // release the overlay — text appears live
+        try {
+          await analyzeCarImageStream(base64, analysisPrompt, selectedFile.type, (chunk) => {
+            setResultText(prev => (prev ?? '') + chunk);
+          });
+        } catch {
+          // Streaming failed — fall back to single-shot
+          setLoading({ isLoading: true, message: 'Analizando vehículo...' });
+          const analysis = await analyzeCarImage(base64, analysisPrompt, selectedFile.type);
+          setResultText(analysis);
+        }
       } else if (mode === AppMode.BATCH_EDIT_SHADOW) {
         if (selectedBatchItems.length === 0) throw new Error("Selecciona al menos una imagen para el procesamiento por lotes.");
 
@@ -882,7 +896,7 @@ const App: React.FC = () => {
                     </div>
                     <p className="text-lg font-medium text-slate-500">Listo para crear magia</p>
                     {mode === AppMode.BATCH_EDIT_SHADOW ? (
-                      <p className="text-sm mt-2">Sube hasta 6 imágenes para procesar por lotes.</p>
+                      <p className="text-sm mt-2">Sube hasta 12 imágenes para procesar por lotes.</p>
                     ) : (
                       <p className="text-sm mt-2">Sube una imagen o selecciona un tipo de sombra.</p>
                     )}
@@ -902,11 +916,23 @@ const App: React.FC = () => {
 
                 {/* Single Image Result */}
                 {resultImage && mode !== AppMode.BATCH_EDIT_SHADOW && (
-                  <img 
-                    src={resultImage} 
-                    alt="Result" 
-                    className="max-w-full max-h-[70vh] rounded-lg shadow-2xl object-contain border border-slate-800"
-                  />
+                  previewUrl && mode !== AppMode.GENERATE
+                    ? (
+                      <div className="w-full">
+                        <BeforeAfterSlider
+                          before={previewUrl}
+                          after={resultImage}
+                          isTransparent={mode === AppMode.REMOVE_BACKGROUND && removeBgType === 'transparent'}
+                        />
+                        <p className="text-center text-xs text-slate-500 mt-2">← Arrastra para comparar →</p>
+                      </div>
+                    ) : (
+                      <img
+                        src={resultImage}
+                        alt="Result"
+                        className="max-w-full max-h-[70vh] rounded-lg shadow-2xl object-contain border border-slate-800"
+                      />
+                    )
                 )}
 
                 {/* Batch Image Results */}
@@ -988,6 +1014,10 @@ const App: React.FC = () => {
                     </h3>
                     <div className="prose prose-invert prose-slate max-w-none whitespace-pre-wrap leading-relaxed">
                       {resultText}
+                      {/* Blinking cursor while streaming */}
+                      {!loading.isLoading && mode === AppMode.ANALYZE && (
+                        <span className="inline-block w-0.5 h-4 bg-emerald-400 ml-0.5 animate-pulse align-middle" />
+                      )}
                     </div>
                     <div className="mt-8 pt-4 border-t border-slate-800 text-xs text-slate-500 text-center">
                       Nota: Este análisis es generado por IA y puede contener imprecisiones sobre especificaciones técnicas exactas.

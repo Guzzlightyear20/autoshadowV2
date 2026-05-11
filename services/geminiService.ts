@@ -149,6 +149,70 @@ export const generateCarImage = async (
 };
 
 /**
+ * Analyze a vehicle image with streaming — calls onChunk for each text chunk
+ * so the UI can render the analysis word-by-word as it arrives.
+ * Proxy: POST /api/gemini/analyze/stream (SSE)
+ * Direct: generateContentStream
+ */
+export const analyzeCarImageStream = async (
+  base64Image: string,
+  prompt: string,
+  mimeType: string = 'image/jpeg',
+  onChunk: (text: string) => void
+): Promise<void> => {
+  if (USE_PROXY) {
+    const res = await fetch('/api/gemini/analyze/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64Image, prompt, mimeType }),
+    });
+
+    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const payload = line.slice(6).trim();
+        if (payload === '[DONE]') return;
+        try {
+          const { text, error } = JSON.parse(payload);
+          if (error) throw new Error(error);
+          if (text) onChunk(text);
+        } catch { /* skip malformed chunks */ }
+      }
+    }
+    return;
+  }
+
+  // Direct streaming — AI Studio / non-proxy mode
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const stream = await ai.models.generateContentStream({
+    model: 'gemini-3.1-pro-preview',
+    contents: {
+      parts: [
+        { inlineData: { mimeType, data: base64Image } },
+        { text: prompt },
+      ],
+    },
+  });
+
+  for await (const chunk of stream) {
+    if (chunk.text) onChunk(chunk.text);
+  }
+};
+
+/**
  * Analyze a vehicle image and return structured text.
  * Proxy: POST /api/gemini/analyze
  * Direct: gemini-3.1-pro-preview

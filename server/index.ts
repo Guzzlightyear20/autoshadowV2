@@ -153,6 +153,45 @@ app.post('/api/gemini/analyze', async (req, res) => {
   }
 });
 
+// Vehicle analysis — streaming via Server-Sent Events
+app.post('/api/gemini/analyze/stream', async (req, res) => {
+  const { base64Image, prompt, mimeType = 'image/jpeg' } = req.body;
+  if (!base64Image || !prompt) {
+    return res.status(400).json({ error: 'base64Image y prompt son requeridos.' });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  try {
+    const ai = getAI();
+    const stream = await ai.models.generateContentStream({
+      model: 'gemini-3.1-pro-preview',
+      contents: {
+        parts: [
+          { inlineData: { mimeType, data: base64Image } },
+          { text: prompt },
+        ],
+      },
+    });
+
+    for await (const chunk of stream) {
+      const text = chunk.text;
+      if (text) {
+        res.write(`data: ${JSON.stringify({ text })}\n\n`);
+      }
+    }
+  } catch (error: any) {
+    console.error('[POST /api/gemini/analyze/stream]', error?.message);
+    res.write(`data: ${JSON.stringify({ error: error?.message ?? 'Error interno' })}\n\n`);
+  } finally {
+    res.write('data: [DONE]\n\n');
+    res.end();
+  }
+});
+
 app.listen(PORT, () => {
   console.log('\n🚗  AutoShadow AI — Proxy Server');
   console.log(`   URL:     http://localhost:${PORT}`);
