@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { AppMode } from './types';
 import { AppProvider, useApp } from './context/AppContext';
 import ControlsPanel from './components/ControlsPanel';
 import ResultView from './components/ResultView';
 import HistoryPanel from './components/HistoryPanel';
-import { CarIcon, SparkIcon, DownloadIcon } from './components/Icons';
+import { CarIcon, SparkIcon, DownloadIcon, UploadIcon } from './components/Icons';
 
 // ─── Inner shell (has access to context via useApp) ────────────────────────────
 
@@ -17,10 +17,68 @@ const AppShell: React.FC = () => {
     historyRefresh,
     handleOpenKeyDialog,
     handleInstallClick,
+    handleFileChange,
   } = useApp();
+
+  // ── Global drag & drop ──
+  const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    const onDragOver = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes('Files')) {
+        e.preventDefault();
+        setIsDragging(true);
+      }
+    };
+    const onDragLeave = (e: DragEvent) => {
+      // Only clear when leaving the browser window entirely
+      if (!e.relatedTarget) setIsDragging(false);
+    };
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+      // Build a synthetic ChangeEvent so handleFileChange can process the dropped files
+      const synthetic = {
+        target: { files, value: '' },
+      } as unknown as React.ChangeEvent<HTMLInputElement>;
+      if (mode === AppMode.BATCH_EDIT_SHADOW) {
+        handleFileChange(synthetic, true);
+      } else {
+        handleFileChange(synthetic, false, 'car');
+      }
+    };
+
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('dragleave', onDragLeave);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('dragleave', onDragLeave);
+      window.removeEventListener('drop', onDrop);
+    };
+  }, [mode, handleFileChange]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-blue-500/30">
+
+      {/* ── Global drag-and-drop overlay ── */}
+      {isDragging && (
+        <div className="fixed inset-0 z-[200] bg-blue-950/90 backdrop-blur-sm border-4 border-dashed border-blue-400 flex items-center justify-center pointer-events-none">
+          <div className="text-center">
+            <div className="flex justify-center mb-4">
+              <UploadIcon />
+            </div>
+            <p className="text-2xl font-bold text-blue-200">Suelta las imágenes aquí</p>
+            <p className="text-blue-400 mt-2 text-sm">
+              {mode === AppMode.BATCH_EDIT_SHADOW
+                ? 'Se agregarán al lote'
+                : 'Se cargará como imagen principal'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Header ── */}
       <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">

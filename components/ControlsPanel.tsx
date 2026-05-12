@@ -17,7 +17,7 @@ const ControlsPanel: React.FC = () => {
     selectedFile,
     previewUrl,
     originalDims,
-    selectedBackgroundFile,
+    selectedBackgroundFile: selectedBackgroundFile,
     backgroundPreviewUrl,
     backgroundDims,
     outputWidth,
@@ -47,6 +47,7 @@ const ControlsPanel: React.FC = () => {
     handleFileChange,
     handleRemoveImage,
     handleAction,
+    handleChainedAction,
   } = useApp();
 
   // Internal setter needed in batch clear button
@@ -519,6 +520,48 @@ const ControlsPanel: React.FC = () => {
           </Button>
         )}
       </div>
+      {/* ── Flujos Encadenados ── */}
+      {(mode === AppMode.EDIT_SHADOW ||
+        mode === AppMode.REMOVE_BACKGROUND ||
+        mode === AppMode.BACKGROUND_EDIT) &&
+        selectedFile && (
+          <div className="bg-slate-900 rounded-2xl p-6 border border-purple-900/50 shadow-xl space-y-3">
+            <h2 className="text-base font-semibold text-white flex items-center gap-2">
+              <span className="text-purple-400 text-lg">⛓</span> Flujos Encadenados
+            </h2>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Combina operaciones en un solo proceso automático de 2 pasos.
+            </p>
+
+            {/* Sin Fondo + Sombra Espejo */}
+            <Button
+              onClick={() => handleChainedAction('shadow-mirror')}
+              isLoading={loading.isLoading}
+              className="w-full bg-violet-700 hover:bg-violet-600 text-white shadow-lg shadow-violet-900/40"
+              disabled={!selectedFile}
+            >
+              {!loading.isLoading && <SparkIcon />}
+              Sin Fondo → Sombra Espejo
+            </Button>
+
+            {/* Estudio Completo — only when background template is loaded */}
+            <Button
+              onClick={() => handleChainedAction('studio-complete')}
+              isLoading={loading.isLoading}
+              className={`w-full text-white shadow-lg shadow-purple-900/40 transition-all ${
+                selectedBackgroundFile
+                  ? 'bg-purple-700 hover:bg-purple-600'
+                  : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+              }`}
+              disabled={!selectedFile || !selectedBackgroundFile}
+            >
+              {!loading.isLoading && <SparkIcon />}
+              {selectedBackgroundFile
+                ? 'Sin Fondo → Fondo Estudio'
+                : 'Sin Fondo → Fondo Estudio (sube plantilla)'}
+            </Button>
+          </div>
+        )}
     </div>
   );
 };

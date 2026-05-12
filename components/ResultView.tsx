@@ -3,6 +3,7 @@ import { AppMode, ImageSize } from '../types';
 import { useApp } from '../context/AppContext';
 import { Button } from './Button';
 import BeforeAfterSlider from './BeforeAfterSlider';
+import ZoomableImage from './ZoomableImage';
 import { SparkIcon, DownloadIcon, ShareIcon, WebpIcon } from './Icons';
 import { downloadResizedImage, downloadAllBatchImages, shareImage } from '../utils';
 
@@ -20,6 +21,7 @@ const ResultView: React.FC = () => {
     outputWidth,
     outputHeight,
     genImageSize,
+    retryFailedBatch,
   } = useApp();
 
   const [shareStatus, setShareStatus] = useState<string | null>(null);
@@ -103,16 +105,30 @@ const ResultView: React.FC = () => {
                 </>
               )}
 
-              {/* Batch download all */}
-              {mode === AppMode.BATCH_EDIT_SHADOW && hasSuccessfulBatchResults && (
-                <Button
-                  variant="primary"
-                  onClick={() => downloadAllBatchImages(resultBatchItems)}
-                  isLoading={loading.isLoading}
-                  className="text-xs py-1.5 px-3"
-                >
-                  Descargar Todo (Zip)
-                </Button>
+              {/* Batch download all + retry failed */}
+              {mode === AppMode.BATCH_EDIT_SHADOW && (
+                <>
+                  {resultBatchItems.some(i => i.errorMessage) && (
+                    <Button
+                      variant="secondary"
+                      onClick={retryFailedBatch}
+                      isLoading={loading.isLoading}
+                      className="text-xs py-1.5 px-3 text-amber-400 border-amber-700 hover:text-amber-300"
+                    >
+                      ↺ Reintentar fallidas ({resultBatchItems.filter(i => i.errorMessage).length})
+                    </Button>
+                  )}
+                  {hasSuccessfulBatchResults && (
+                    <Button
+                      variant="primary"
+                      onClick={() => downloadAllBatchImages(resultBatchItems)}
+                      isLoading={loading.isLoading}
+                      className="text-xs py-1.5 px-3"
+                    >
+                      Descargar Todo (Zip)
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -165,11 +181,7 @@ const ResultView: React.FC = () => {
                 <p className="text-center text-xs text-slate-500 mt-2">← Arrastra para comparar →</p>
               </div>
             ) : (
-              <img
-                src={resultImage}
-                alt="Result"
-                className="max-w-full max-h-[70vh] rounded-lg shadow-2xl object-contain border border-slate-800"
-              />
+              <ZoomableImage src={resultImage} />
             )
           )}
 

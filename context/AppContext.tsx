@@ -14,7 +14,13 @@ import {
   analyzeCarImageStream,
   composeCarWithBackground,
 } from '../services/geminiService';
-import { fileToBase64, processWithConcurrency, resizeBase64Image } from '../utils';
+import {
+  compressImageForAPI,
+  fileToBase64,
+  processWithConcurrency,
+  resizeBase64Image,
+  retryWithBackoff,
+} from '../utils';
 import { historyDB } from '../hooks/useImageHistory';
 import { usePromptLibrary } from '../hooks/usePromptLibrary';
 import {
@@ -91,6 +97,10 @@ export interface AppContextValue {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   backgroundFileInputRef: React.RefObject<HTMLInputElement | null>;
   batchFileInputRef: React.RefObject<HTMLInputElement | null>;
+
+  // chained flows + retry
+  handleChainedAction: (flow: 'shadow-mirror' | 'studio-complete') => Promise<void>;
+  retryFailedBatch: () => Promise<void>;
 
   // handlers
   handleFileChange: (
@@ -333,14 +343,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         if (mode === AppMode.EDIT_SHADOW) {
           if (!selectedFile) throw new Error('Selecciona una imagen primero.');
-          const base64 = await fileToBase64(selectedFile);
+          const base64 = await compressImageForAPI(selectedFile);
           const editedImage = await editCarImage(base64, promptToUse, selectedFile.type);
           setResultImage(editedImage);
           saveToHistory(editedImage, null, promptToUse, selectedFile.name);
 
         } else if (mode === AppMode.REMOVE_BACKGROUND) {
           if (!selectedFile) throw new Error('Selecciona una imagen primero.');
-          const base64 = await fileToBase64(selectedFile);
+          const base64 = await compressImageForAPI(selectedFile);
           const finalPrompt =
             specificPrompt ||
             (removeBgType === 'white' ? PROMPT_REMOVE_BACKGROUND_WHITE : PROMPT_REMOVE_BACKGROUND_TRANSPARENT);
@@ -351,8 +361,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else if (mode === AppMode.BACKGROUND_EDIT) {
           if (!selectedFile || !selectedBackgroundFile)
             throw new Error('Por favor, sube ambas imágenes: la del auto y la plantilla de fondo.');
-          const carBase64 = await fileToBase64(selectedFile);
-          const backgroundBase64 = await fileToBase64(selectedBackgroundFile);
+          const carBase64 = await compressImageForAPI(selectedFile);
+          const backgroundBase64 = await compressImageForAPI(selectedBackgroundFile);
           const dynamicPrompt = PROMPT_C_BACKGROUND.replace(
             '5) SCALING: Scale the car to occupy 85-90% of the width of the background',
             `5) SCALING: Scale the car to occupy exactly ${vehicleScale}% of the width of the background`
@@ -380,7 +390,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         } else if (mode === AppMode.ANALYZE) {
           if (!selectedFile) throw new Error('Selecciona una imagen primero.');
-          const base64 = await fileToBase64(selectedFile);
+          const base64 = await compressImageForAPI(selectedFile);
           const analysisPrompt = promptToUse || 'Analiza este vehículo: marca, modelo estimado, color y características visibles.';
 
           setResultText('');
@@ -414,8 +424,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             selectedBatchItems,
             async item => {
               try {
-                const base64 = await fileToBase64(item.file);
-                const editedImage = await editCarImage(base64, promptToUse, item.file.type);
+                const base64 = await compressImageForAPI(item.file);
+                const editedImage = await retryWithBackoff(() =>
+                  editCarImage(base64, promptToUse, item.file.type)
+                );
                 completed++;
                 setLoading({ isLoading: true, message: `Procesando: ${completed} / ${total} completadas` });
                 setResultBatchItems(prev =>
@@ -445,6 +457,114 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       mode, prompt, selectedFile, selectedBackgroundFile, backgroundDims, vehicleScale,
       removeBgType, selectedBatchItems, genAspectRatio, genImageSize, saveToHistory,
     ]
+  );
+
+  // ── retryFailedBatch ──
+
+  const retryFailedBatch = useCallback(async () => {
+    const failed = resultBatchItems.filter(i => i.errorMessage);
+    if (!failed.length) return;
+
+    setResultBatchItems(prev =>
+      prev.map(i => (i.errorMessage ? { ...i, loading: true, errorMessage: undefined } : i))
+    );
+
+    const total = failed.length;
+    let completed = 0;
+    setLoading({ isLoading: true, message: `Reintentando ${total} imagen${total > 1 ? 'es' : ''}…` });
+
+    // Use the last-used prompt from state (PROMPT_A_MIRROR as safe default)
+    const retryPrompt = prompt || PROMPT_A_MIRROR;
+
+    await processWithConcurrency<BatchImageItem>(
+      failed,
+      async item => {
+        try {
+          const base64 = await compressImageForAPI(item.file);
+          const editedImage = await retryWithBackoff(() =>
+            editCarImage(base64, retryPrompt, item.file.type)
+          );
+          completed++;
+          setLoading({ isLoading: true, message: `Reintentando: ${completed} / ${total} listas` });
+          setResultBatchItems(prev =>
+            prev.map(i => (i.id === item.id ? { ...i, resultImage: editedImage, loading: false } : i))
+          );
+        } catch (err) {
+          completed++;
+          setResultBatchItems(prev =>
+            prev.map(i => (i.id === item.id ? { ...i, loading: false, errorMessage: 'Error al procesar' } : i))
+          );
+        }
+      },
+      3
+    );
+    setLoading({ isLoading: false, message: '' });
+  }, [resultBatchItems, prompt]);
+
+  // ── handleChainedAction ──
+
+  const handleChainedAction = useCallback(
+    async (flow: 'shadow-mirror' | 'studio-complete') => {
+      if (!selectedFile) {
+        alert('Selecciona una imagen primero.');
+        return;
+      }
+
+      setResultImage(null);
+      setResultText(null);
+
+      try {
+        const base64 = await compressImageForAPI(selectedFile);
+
+        if (flow === 'shadow-mirror') {
+          // Step 1: Remove background (white)
+          setLoading({ isLoading: true, message: 'Paso 1/2: Removiendo fondo…' });
+          const noBg = await editCarImage(base64, PROMPT_REMOVE_BACKGROUND_WHITE, selectedFile.type);
+          const noBgBase64 = noBg.split(',')[1];
+
+          // Step 2: Add mirror shadow to the clean result
+          setLoading({ isLoading: true, message: 'Paso 2/2: Aplicando sombra espejo…' });
+          const withShadow = await editCarImage(noBgBase64, PROMPT_A_MIRROR, 'image/png');
+          setResultImage(withShadow);
+          saveToHistory(withShadow, null, 'Flujo: Sin Fondo + Sombra Espejo', selectedFile.name);
+
+        } else if (flow === 'studio-complete') {
+          if (!selectedBackgroundFile) {
+            alert('Para "Estudio Completo" necesitas subir también la plantilla de fondo.');
+            return;
+          }
+
+          // Step 1: Remove background
+          setLoading({ isLoading: true, message: 'Paso 1/2: Removiendo fondo del auto…' });
+          const noBg = await editCarImage(base64, PROMPT_REMOVE_BACKGROUND_WHITE, selectedFile.type);
+          const noBgBase64 = noBg.split(',')[1];
+
+          // Step 2: Compose onto background template
+          setLoading({ isLoading: true, message: 'Paso 2/2: Componiendo con plantilla de estudio…' });
+          const bgBase64 = await compressImageForAPI(selectedBackgroundFile);
+          const dynamicPrompt = PROMPT_C_BACKGROUND.replace(
+            '5) SCALING: Scale the car to occupy 85-90% of the width of the background',
+            `5) SCALING: Scale the car to occupy exactly ${vehicleScale}% of the width of the background`
+          );
+          const composed = await composeCarWithBackground(
+            noBgBase64, 'image/png',
+            bgBase64, selectedBackgroundFile.type,
+            dynamicPrompt
+          );
+          const finalImage = backgroundDims
+            ? await resizeBase64Image(composed, backgroundDims.w, backgroundDims.h)
+            : composed;
+          setResultImage(finalImage);
+          saveToHistory(finalImage, null, 'Flujo: Sin Fondo + Fondo Estudio', selectedFile.name);
+        }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        alert(`Error en flujo encadenado: ${msg}`);
+      } finally {
+        setLoading({ isLoading: false, message: '' });
+      }
+    },
+    [selectedFile, selectedBackgroundFile, vehicleScale, backgroundDims, saveToHistory]
   );
 
   // ── resetState ──
@@ -526,6 +646,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     handleFileChange,
     handleRemoveImage,
     handleAction,
+    handleChainedAction,
+    retryFailedBatch,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

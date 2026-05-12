@@ -93,6 +93,65 @@ export const downloadImage = (url: string, filename: string) => {
 };
 
 /**
+ * Compress a File before sending to the Gemini API.
+ * Scales down to maxWidth if the image is larger, then re-encodes.
+ * Returns the raw base64 string (no data-URL prefix) — same as fileToBase64.
+ * Images already ≤ maxWidth pass through without quality loss.
+ */
+export const compressImageForAPI = (
+  file: File,
+  maxWidth = 1920,
+  quality = 0.88
+): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxWidth / img.width);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject(new Error('No canvas context'));
+      ctx.drawImage(img, 0, 0, w, h);
+      // Preserve PNG for transparency; use JPEG for everything else
+      const fmt = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+      const dataUrl = canvas.toDataURL(fmt, fmt === 'image/jpeg' ? quality : 1);
+      resolve(dataUrl.split(',')[1]);
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+
+/**
+ * Retry a promise-returning function up to maxRetries times using exponential backoff.
+ * Only retries on rate-limit (429) and transient server errors — other errors throw immediately.
+ */
+export const retryWithBackoff = async <T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  baseDelayMs = 2000
+): Promise<T> => {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt === maxRetries) throw error;
+      const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
+      const isRetryable =
+        msg.includes('429') || msg.includes('503') || msg.includes('500') ||
+        msg.includes('rate') || msg.includes('quota') || msg.includes('overloaded');
+      if (!isRetryable) throw error;
+      await new Promise(r => setTimeout(r, baseDelayMs * Math.pow(2, attempt)));
+    }
+  }
+  throw new Error('Max retries exceeded');
+};
+
+/**
  * Resizes a base64 image to specific dimensions and returns a new base64 string.
  */
 export const resizeBase64Image = (
