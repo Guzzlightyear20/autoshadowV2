@@ -4,6 +4,9 @@ import { editCarImage, generateCarImage, analyzeCarImage, analyzeCarImageStream,
 import { fileToBase64, downloadResizedImage, downloadAllBatchImages, resizeBase64Image, processWithConcurrency } from './utils';
 import { Button } from './components/Button';
 import BeforeAfterSlider from './components/BeforeAfterSlider';
+import HistoryPanel from './components/HistoryPanel';
+import { historyDB } from './hooks/useImageHistory';
+import { usePromptLibrary } from './hooks/usePromptLibrary';
 
 // Icons as simple SVGs
 const UploadIcon = () => (
@@ -105,6 +108,13 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState<LoadingState>({ isLoading: false, message: '' });
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [hasKey, setHasKey] = useState<boolean>(true);
+
+  // History: increment to trigger HistoryPanel reload after each new save
+  const [historyRefresh, setHistoryRefresh] = useState(0);
+
+  // Prompt library
+  const { add: addPrompt, remove: removePrompt, forMode } = usePromptLibrary();
+  const [savingPromptName, setSavingPromptName] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const backgroundFileInputRef = useRef<HTMLInputElement>(null); // New ref for background file input
@@ -257,17 +267,19 @@ const App: React.FC = () => {
         const base64 = await fileToBase64(selectedFile);
         const editedImage = await editCarImage(base64, promptToUse, selectedFile.type);
         setResultImage(editedImage);
+        saveToHistory(editedImage, null, promptToUse, selectedFile.name);
       } else if (mode === AppMode.REMOVE_BACKGROUND) {
         if (!selectedFile) throw new Error("Selecciona una imagen primero.");
         const base64 = await fileToBase64(selectedFile);
         const finalPrompt = specificPrompt || (removeBgType === 'white' ? PROMPT_REMOVE_BACKGROUND_WHITE : PROMPT_REMOVE_BACKGROUND_TRANSPARENT);
         const editedImage = await editCarImage(base64, finalPrompt, selectedFile.type);
         setResultImage(editedImage);
+        saveToHistory(editedImage, null, finalPrompt, selectedFile.name);
       } else if (mode === AppMode.BACKGROUND_EDIT) {
         if (!selectedFile || !selectedBackgroundFile) throw new Error("Por favor, sube ambas imágenes: la del auto y la plantilla de fondo.");
         const carBase64 = await fileToBase64(selectedFile);
         const backgroundBase64 = await fileToBase64(selectedBackgroundFile);
-        
+
         // Inject vehicle scale into the prompt
         const dynamicPrompt = PROMPT_C_BACKGROUND.replace(
           "5) SCALING: Scale the car to occupy 85-90% of the width of the background",
@@ -281,17 +293,20 @@ const App: React.FC = () => {
           selectedBackgroundFile.type,
           dynamicPrompt
         );
-        
+
         // Ensure the result matches the background template dimensions
         if (backgroundDims) {
           const resizedResult = await resizeBase64Image(composedImage, backgroundDims.w, backgroundDims.h);
           setResultImage(resizedResult);
+          saveToHistory(resizedResult, null, dynamicPrompt, selectedFile.name);
         } else {
           setResultImage(composedImage);
+          saveToHistory(composedImage, null, dynamicPrompt, selectedFile.name);
         }
       } else if (mode === AppMode.GENERATE) {
         const generated = await generateCarImage(promptToUse, genAspectRatio, genImageSize);
         setResultImage(generated);
+        saveToHistory(generated, null, promptToUse);
       } else if (mode === AppMode.ANALYZE) {
         if (!selectedFile) throw new Error("Selecciona una imagen primero.");
         const base64 = await fileToBase64(selectedFile);
@@ -300,16 +315,19 @@ const App: React.FC = () => {
         // Show streaming text word-by-word; fall back to single-shot on error
         setResultText('');
         setLoading({ isLoading: false, message: '' }); // release the overlay — text appears live
+        let finalText = '';
         try {
           await analyzeCarImageStream(base64, analysisPrompt, selectedFile.type, (chunk) => {
+            finalText += chunk;
             setResultText(prev => (prev ?? '') + chunk);
           });
         } catch {
           // Streaming failed — fall back to single-shot
           setLoading({ isLoading: true, message: 'Analizando vehículo...' });
-          const analysis = await analyzeCarImage(base64, analysisPrompt, selectedFile.type);
-          setResultText(analysis);
+          finalText = await analyzeCarImage(base64, analysisPrompt, selectedFile.type);
+          setResultText(finalText);
         }
+        saveToHistory(null, finalText, analysisPrompt, selectedFile.name);
       } else if (mode === AppMode.BATCH_EDIT_SHADOW) {
         if (selectedBatchItems.length === 0) throw new Error("Selecciona al menos una imagen para el procesamiento por lotes.");
 
@@ -353,6 +371,25 @@ const App: React.FC = () => {
     } finally {
       setLoading({ isLoading: false, message: '' });
     }
+  };
+
+  /** Save a single result to IndexedDB history and signal HistoryPanel to reload. */
+  const saveToHistory = async (
+    resultImg: string | null,
+    resultTxt: string | null,
+    promptUsed?: string,
+    filename?: string
+  ) => {
+    if (!resultImg && !resultTxt) return;
+    await historyDB.save({
+      mode,
+      fileName: filename,
+      prompt: promptUsed,
+      originalImage: previewUrl ?? undefined,
+      resultImage: resultImg ?? undefined,
+      resultText: resultTxt ?? undefined,
+    });
+    setHistoryRefresh(n => n + 1);
   };
 
   const resetState = useCallback((newMode: AppMode) => {
@@ -708,6 +745,59 @@ const App: React.FC = () => {
                     onChange={(e) => setPrompt(e.target.value)}
                     placeholder="Describe lo que quieres hacer..."
                   />
+
+                  {/* ── Prompt Library ── */}
+                  <div className="space-y-2 pt-1">
+                    {/* Save current prompt */}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={savingPromptName}
+                        onChange={e => setSavingPromptName(e.target.value)}
+                        placeholder="Nombre del prompt..."
+                        className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 outline-none focus:border-blue-500 transition-colors"
+                      />
+                      <button
+                        disabled={!savingPromptName.trim() || !prompt.trim()}
+                        onClick={() => {
+                          addPrompt(savingPromptName.trim(), prompt, mode);
+                          setSavingPromptName('');
+                        }}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors flex-shrink-0"
+                      >
+                        Guardar
+                      </button>
+                    </div>
+
+                    {/* Saved prompts for this mode */}
+                    {forMode(mode).length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-[10px] uppercase text-slate-600 font-semibold tracking-wider">
+                          Guardados
+                        </p>
+                        <div className="flex flex-col gap-1 max-h-36 overflow-y-auto">
+                          {forMode(mode).map(p => (
+                            <div key={p.id} className="flex items-center gap-1 bg-slate-950 rounded-lg px-2 py-1 border border-slate-800">
+                              <button
+                                onClick={() => setPrompt(p.prompt)}
+                                className="flex-1 text-left text-xs text-slate-300 hover:text-white truncate transition-colors"
+                                title={p.prompt}
+                              >
+                                {p.name}
+                              </button>
+                              <button
+                                onClick={() => removePrompt(p.id)}
+                                className="text-slate-600 hover:text-red-400 transition-colors text-xs flex-shrink-0"
+                                title="Eliminar"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1029,6 +1119,13 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* ── History Panel ── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+        <div className="rounded-2xl border border-slate-800 overflow-hidden">
+          <HistoryPanel refreshSignal={historyRefresh} />
+        </div>
+      </div>
     </div>
   );
 };
