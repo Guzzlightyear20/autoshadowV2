@@ -45,10 +45,10 @@ export const fileToBase64 = (file: File): Promise<string> => {
  * Useful for ensuring the output matches the input size exactly.
  */
 export const downloadResizedImage = (
-  url: string, 
-  filename: string, 
-  format: 'image/png' | 'image/jpeg',
-  targetWidth?: number, 
+  url: string,
+  filename: string,
+  format: 'image/png' | 'image/jpeg' | 'image/webp',
+  targetWidth?: number,
   targetHeight?: number
 ) => {
   const img = new Image();
@@ -73,7 +73,8 @@ export const downloadResizedImage = (
     // content-box, fill
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    const dataUrl = canvas.toDataURL(format, format === 'image/jpeg' ? 0.9 : 1.0);
+    const quality = format === 'image/jpeg' ? 0.9 : format === 'image/webp' ? 0.92 : 1.0;
+    const dataUrl = canvas.toDataURL(format, quality);
     
     const link = document.createElement('a');
     link.href = dataUrl;
@@ -123,6 +124,43 @@ export const resizeBase64Image = (
     img.onerror = (error) => reject(error);
     img.src = base64;
   });
+};
+
+/**
+ * Share an image via Web Share API (mobile/modern browsers).
+ * Falls back to copying the data URL to the clipboard.
+ * Returns: 'shared' | 'copied' | 'unsupported'
+ */
+export const shareImage = async (
+  dataUrl: string,
+  filename: string
+): Promise<'shared' | 'copied' | 'unsupported'> => {
+  // Convert data URL to Blob
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  const file = new File([blob], filename, { type: blob.type });
+
+  // Prefer Web Share API (works on mobile / modern browsers)
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    await navigator.share({ files: [file], title: 'AutoShadow AI' });
+    return 'shared';
+  }
+
+  // Fallback: copy data URL to clipboard
+  if (navigator.clipboard) {
+    try {
+      // Attempt to write image directly if supported
+      const clipItem = new ClipboardItem({ [blob.type]: blob });
+      await navigator.clipboard.write([clipItem]);
+      return 'copied';
+    } catch {
+      // Last resort: write text URL
+      await navigator.clipboard.writeText(dataUrl);
+      return 'copied';
+    }
+  }
+
+  return 'unsupported';
 };
 
 /**
