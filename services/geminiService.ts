@@ -31,13 +31,13 @@ async function proxyPost<T>(endpoint: string, body: object): Promise<T> {
 /**
  * Edit an image (shadows, background removal).
  * Proxy: POST /api/gemini/edit
- * Model is caller-provided; defaults to gemini-2.5-flash-image (today's fixed behavior).
+ * Model is caller-provided — see constants/models.ts for the catalog and per-mode defaults.
  */
 export const editCarImage = async (
   base64Image: string,
   prompt: string,
   mimeType: string = "image/jpeg",
-  model: string = 'gemini-2.5-flash-image'
+  model: string
 ): Promise<string> => {
   if (USE_PROXY) {
     const { imageData } = await proxyPost<{ imageData: string }>(
@@ -70,8 +70,7 @@ export const editCarImage = async (
 /**
  * Compose a vehicle onto a background template.
  * Proxy: POST /api/gemini/compose
- * Model and imageSize are caller-provided; default to today's fixed values
- * (gemini-3.1-flash-image-preview, 2K).
+ * Model and imageSize are caller-provided — see constants/models.ts for the catalog and per-mode defaults.
  */
 export const composeCarWithBackground = async (
   carImageBase64: string,
@@ -79,8 +78,8 @@ export const composeCarWithBackground = async (
   templateImageBase64: string,
   templateImageMimeType: string,
   prompt: string,
-  model: string = 'gemini-3.1-flash-image-preview',
-  imageSize: ImageSize = ImageSize.SIZE_2K
+  model: string,
+  imageSize: ImageSize
 ): Promise<string> => {
   if (USE_PROXY) {
     const { imageData } = await proxyPost<{ imageData: string }>(
@@ -119,13 +118,13 @@ export const composeCarWithBackground = async (
 /**
  * Generate a new vehicle image from a text prompt.
  * Proxy: POST /api/gemini/generate
- * Model is caller-provided; defaults to gemini-3.1-flash-image-preview (today's fixed behavior).
+ * Model is caller-provided — see constants/models.ts for the catalog and per-mode defaults.
  */
 export const generateCarImage = async (
   prompt: string,
   aspectRatio: AspectRatio,
   imageSize: ImageSize,
-  model: string = 'gemini-3.1-flash-image-preview'
+  model: string
 ): Promise<string> => {
   if (USE_PROXY) {
     const { imageData } = await proxyPost<{ imageData: string }>(
@@ -157,14 +156,14 @@ export const generateCarImage = async (
  * Analyze a vehicle image with streaming — calls onChunk for each text chunk
  * so the UI can render the analysis word-by-word as it arrives.
  * Proxy: POST /api/gemini/analyze/stream (SSE)
- * Model is caller-provided; defaults to gemini-3.1-pro-preview (today's fixed behavior).
+ * Model is caller-provided — see constants/models.ts for the catalog and per-mode defaults.
  */
 export const analyzeCarImageStream = async (
   base64Image: string,
   prompt: string,
   mimeType: string = 'image/jpeg',
   onChunk: (text: string) => void,
-  model: string = 'gemini-3.1-pro-preview'
+  model: string
 ): Promise<void> => {
   if (USE_PROXY) {
     const res = await fetch('/api/gemini/analyze/stream', {
@@ -221,13 +220,13 @@ export const analyzeCarImageStream = async (
 /**
  * Analyze a vehicle image and return structured text.
  * Proxy: POST /api/gemini/analyze
- * Model is caller-provided; defaults to gemini-3.1-pro-preview (today's fixed behavior).
+ * Model is caller-provided — see constants/models.ts for the catalog and per-mode defaults.
  */
 export const analyzeCarImage = async (
   base64Image: string,
   prompt: string,
   mimeType: string = "image/jpeg",
-  model: string = 'gemini-3.1-pro-preview'
+  model: string
 ): Promise<string> => {
   if (USE_PROXY) {
     const { text } = await proxyPost<{ text: string }>(

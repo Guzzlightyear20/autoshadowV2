@@ -5,6 +5,7 @@ import * as dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { IMAGE_MODELS, TEXT_MODELS } from '../constants/models';
+import { ImageSize } from '../types';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +15,9 @@ dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
 
 const isAllowed = (list: { id: string }[], model: unknown): model is string =>
   typeof model === 'string' && list.some(m => m.id === model);
+
+const isValidImageSize = (imageSize: unknown): imageSize is ImageSize =>
+  typeof imageSize === 'string' && (Object.values(ImageSize) as string[]).includes(imageSize);
 
 const app = express();
 const PORT = process.env.SERVER_PORT || 3001;
@@ -84,6 +88,9 @@ app.post('/api/gemini/compose', async (req, res) => {
     if (!isAllowed(IMAGE_MODELS, model)) {
       return res.status(400).json({ error: 'Modelo no permitido.' });
     }
+    if (!isValidImageSize(imageSize)) {
+      return res.status(400).json({ error: 'imageSize no permitido.' });
+    }
 
     const ai = getAI();
     const response = await ai.models.generateContent({
@@ -119,6 +126,9 @@ app.post('/api/gemini/generate', async (req, res) => {
     if (!prompt) return res.status(400).json({ error: 'El prompt es requerido.' });
     if (!isAllowed(IMAGE_MODELS, model)) {
       return res.status(400).json({ error: 'Modelo no permitido.' });
+    }
+    if (!isValidImageSize(imageSize)) {
+      return res.status(400).json({ error: 'imageSize no permitido.' });
     }
 
     const ai = getAI();

@@ -168,7 +168,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [modelByMode, setModelByModeState] = useState<Record<AppMode, string>>(() => {
     const stored = (() => {
       try {
-        return JSON.parse(localStorage.getItem('autoshadow:models') ?? '{}');
+        const parsed = JSON.parse(localStorage.getItem('autoshadow:models') ?? '{}');
+        return parsed && typeof parsed === 'object' ? parsed : {};
       } catch {
         return {};
       }
@@ -192,7 +193,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [imageSizeByMode, setImageSizeByModeState] = useState<Record<AppMode, ImageSize>>(() => {
     const stored = (() => {
       try {
-        return JSON.parse(localStorage.getItem('autoshadow:imageSizes') ?? '{}');
+        const parsed = JSON.parse(localStorage.getItem('autoshadow:imageSizes') ?? '{}');
+        return parsed && typeof parsed === 'object' ? parsed : {};
       } catch {
         return {};
       }
