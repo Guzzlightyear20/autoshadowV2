@@ -398,7 +398,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (mode === AppMode.EDIT_SHADOW) {
           if (!selectedFile) throw new Error('Selecciona una imagen primero.');
           const base64 = await compressImageForAPI(selectedFile);
-          const editedImage = await editCarImage(base64, promptToUse, selectedFile.type);
+          const editedImage = await editCarImage(base64, promptToUse, selectedFile.type, modelByMode[AppMode.EDIT_SHADOW]);
           setResultImage(editedImage);
           saveToHistory(editedImage, null, promptToUse, selectedFile.name);
 
@@ -408,7 +408,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const finalPrompt =
             specificPrompt ||
             (removeBgType === 'white' ? PROMPT_REMOVE_BACKGROUND_WHITE : PROMPT_REMOVE_BACKGROUND_TRANSPARENT);
-          const editedImage = await editCarImage(base64, finalPrompt, selectedFile.type);
+          const editedImage = await editCarImage(base64, finalPrompt, selectedFile.type, modelByMode[AppMode.REMOVE_BACKGROUND]);
           setResultImage(editedImage);
           saveToHistory(editedImage, null, finalPrompt, selectedFile.name);
 
@@ -426,7 +426,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             selectedFile.type,
             backgroundBase64,
             selectedBackgroundFile.type,
-            dynamicPrompt
+            dynamicPrompt,
+            modelByMode[AppMode.BACKGROUND_EDIT],
+            imageSizeByMode[AppMode.BACKGROUND_EDIT]
           );
           if (backgroundDims) {
             const resized = await resizeBase64Image(composedImage, backgroundDims.w, backgroundDims.h);
@@ -438,7 +440,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
         } else if (mode === AppMode.GENERATE) {
-          const generated = await generateCarImage(promptToUse, genAspectRatio, genImageSize);
+          const generated = await generateCarImage(promptToUse, genAspectRatio, genImageSize, modelByMode[AppMode.GENERATE]);
           setResultImage(generated);
           saveToHistory(generated, null, promptToUse);
 
@@ -454,10 +456,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             await analyzeCarImageStream(base64, analysisPrompt, selectedFile.type, chunk => {
               finalText += chunk;
               setResultText(prev => (prev ?? '') + chunk);
-            });
+            }, modelByMode[AppMode.ANALYZE]);
           } catch {
             setLoading({ isLoading: true, message: 'Analizando vehículo...' });
-            finalText = await analyzeCarImage(base64, analysisPrompt, selectedFile.type);
+            finalText = await analyzeCarImage(base64, analysisPrompt, selectedFile.type, modelByMode[AppMode.ANALYZE]);
             setResultText(finalText);
           }
           saveToHistory(null, finalText, analysisPrompt, selectedFile.name);
@@ -480,7 +482,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               try {
                 const base64 = await compressImageForAPI(item.file);
                 const editedImage = await retryWithBackoff(() =>
-                  editCarImage(base64, promptToUse, item.file.type)
+                  editCarImage(base64, promptToUse, item.file.type, modelByMode[AppMode.BATCH_EDIT_SHADOW])
                 );
                 completed++;
                 setLoading({ isLoading: true, message: `Procesando: ${completed} / ${total} completadas` });
@@ -510,6 +512,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [
       mode, prompt, selectedFile, selectedBackgroundFile, backgroundDims, vehicleScale,
       removeBgType, selectedBatchItems, genAspectRatio, genImageSize, saveToHistory,
+      modelByMode, imageSizeByMode,
     ]
   );
 
@@ -536,7 +539,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           const base64 = await compressImageForAPI(item.file);
           const editedImage = await retryWithBackoff(() =>
-            editCarImage(base64, retryPrompt, item.file.type)
+            editCarImage(base64, retryPrompt, item.file.type, modelByMode[AppMode.BATCH_EDIT_SHADOW])
           );
           completed++;
           setLoading({ isLoading: true, message: `Reintentando: ${completed} / ${total} listas` });
@@ -553,7 +556,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       3
     );
     setLoading({ isLoading: false, message: '' });
-  }, [resultBatchItems, prompt]);
+  }, [resultBatchItems, prompt, modelByMode]);
 
   // ── handleChainedAction ──
 
@@ -573,12 +576,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (flow === 'shadow-mirror') {
           // Step 1: Remove background (white)
           setLoading({ isLoading: true, message: 'Paso 1/2: Removiendo fondo…' });
-          const noBg = await editCarImage(base64, PROMPT_REMOVE_BACKGROUND_WHITE, selectedFile.type);
+          const noBg = await editCarImage(base64, PROMPT_REMOVE_BACKGROUND_WHITE, selectedFile.type, modelByMode[AppMode.REMOVE_BACKGROUND]);
           const noBgBase64 = noBg.split(',')[1];
 
           // Step 2: Add mirror shadow to the clean result
           setLoading({ isLoading: true, message: 'Paso 2/2: Aplicando sombra espejo…' });
-          const withShadow = await editCarImage(noBgBase64, PROMPT_A_MIRROR, 'image/png');
+          const withShadow = await editCarImage(noBgBase64, PROMPT_A_MIRROR, 'image/png', modelByMode[AppMode.EDIT_SHADOW]);
           setResultImage(withShadow);
           saveToHistory(withShadow, null, 'Flujo: Sin Fondo + Sombra Espejo', selectedFile.name);
 
@@ -590,7 +593,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           // Step 1: Remove background
           setLoading({ isLoading: true, message: 'Paso 1/2: Removiendo fondo del auto…' });
-          const noBg = await editCarImage(base64, PROMPT_REMOVE_BACKGROUND_WHITE, selectedFile.type);
+          const noBg = await editCarImage(base64, PROMPT_REMOVE_BACKGROUND_WHITE, selectedFile.type, modelByMode[AppMode.REMOVE_BACKGROUND]);
           const noBgBase64 = noBg.split(',')[1];
 
           // Step 2: Compose onto background template
@@ -603,7 +606,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const composed = await composeCarWithBackground(
             noBgBase64, 'image/png',
             bgBase64, selectedBackgroundFile.type,
-            dynamicPrompt
+            dynamicPrompt,
+            modelByMode[AppMode.BACKGROUND_EDIT],
+            imageSizeByMode[AppMode.BACKGROUND_EDIT]
           );
           const finalImage = backgroundDims
             ? await resizeBase64Image(composed, backgroundDims.w, backgroundDims.h)
@@ -618,7 +623,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLoading({ isLoading: false, message: '' });
       }
     },
-    [selectedFile, selectedBackgroundFile, vehicleScale, backgroundDims, saveToHistory]
+    [selectedFile, selectedBackgroundFile, vehicleScale, backgroundDims, saveToHistory, modelByMode, imageSizeByMode]
   );
 
   // ── resetState ──
