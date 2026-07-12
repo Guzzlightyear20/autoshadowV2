@@ -31,17 +31,18 @@ async function proxyPost<T>(endpoint: string, body: object): Promise<T> {
 /**
  * Edit an image (shadows, background removal).
  * Proxy: POST /api/gemini/edit
- * Direct: gemini-2.5-flash-image
+ * Model is caller-provided; defaults to gemini-2.5-flash-image (today's fixed behavior).
  */
 export const editCarImage = async (
   base64Image: string,
   prompt: string,
-  mimeType: string = "image/jpeg"
+  mimeType: string = "image/jpeg",
+  model: string = 'gemini-2.5-flash-image'
 ): Promise<string> => {
   if (USE_PROXY) {
     const { imageData } = await proxyPost<{ imageData: string }>(
       '/api/gemini/edit',
-      { base64Image, prompt, mimeType }
+      { base64Image, prompt, mimeType, model }
     );
     return `data:image/png;base64,${imageData}`;
   }
@@ -49,7 +50,7 @@ export const editCarImage = async (
   // Direct call — AI Studio / non-proxy mode
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
+    model,
     contents: {
       parts: [
         { inlineData: { mimeType, data: base64Image } },
@@ -69,19 +70,22 @@ export const editCarImage = async (
 /**
  * Compose a vehicle onto a background template.
  * Proxy: POST /api/gemini/compose
- * Direct: gemini-3.1-flash-image-preview
+ * Model and imageSize are caller-provided; default to today's fixed values
+ * (gemini-3.1-flash-image-preview, 2K).
  */
 export const composeCarWithBackground = async (
   carImageBase64: string,
   carImageMimeType: string,
   templateImageBase64: string,
   templateImageMimeType: string,
-  prompt: string
+  prompt: string,
+  model: string = 'gemini-3.1-flash-image-preview',
+  imageSize: ImageSize = ImageSize.SIZE_2K
 ): Promise<string> => {
   if (USE_PROXY) {
     const { imageData } = await proxyPost<{ imageData: string }>(
       '/api/gemini/compose',
-      { carImageBase64, carImageMimeType, templateImageBase64, templateImageMimeType, prompt }
+      { carImageBase64, carImageMimeType, templateImageBase64, templateImageMimeType, prompt, model, imageSize }
     );
     return `data:image/png;base64,${imageData}`;
   }
@@ -89,7 +93,7 @@ export const composeCarWithBackground = async (
   // Direct call — AI Studio / non-proxy mode
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-flash-image-preview',
+    model,
     contents: {
       parts: [
         { text: 'IMAGE 1 (SOURCE VEHICLE):' },
@@ -100,7 +104,7 @@ export const composeCarWithBackground = async (
       ],
     },
     config: {
-      imageConfig: { imageSize: '2K' },
+      imageConfig: { imageSize },
     },
   });
 
@@ -115,17 +119,18 @@ export const composeCarWithBackground = async (
 /**
  * Generate a new vehicle image from a text prompt.
  * Proxy: POST /api/gemini/generate
- * Direct: gemini-3.1-flash-image-preview
+ * Model is caller-provided; defaults to gemini-3.1-flash-image-preview (today's fixed behavior).
  */
 export const generateCarImage = async (
   prompt: string,
   aspectRatio: AspectRatio,
-  imageSize: ImageSize
+  imageSize: ImageSize,
+  model: string = 'gemini-3.1-flash-image-preview'
 ): Promise<string> => {
   if (USE_PROXY) {
     const { imageData } = await proxyPost<{ imageData: string }>(
       '/api/gemini/generate',
-      { prompt, aspectRatio, imageSize }
+      { prompt, aspectRatio, imageSize, model }
     );
     return `data:image/png;base64,${imageData}`;
   }
@@ -133,7 +138,7 @@ export const generateCarImage = async (
   // Direct call — AI Studio / non-proxy mode
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-flash-image-preview',
+    model,
     contents: { parts: [{ text: prompt }] },
     config: {
       imageConfig: { aspectRatio, imageSize },
@@ -152,19 +157,20 @@ export const generateCarImage = async (
  * Analyze a vehicle image with streaming — calls onChunk for each text chunk
  * so the UI can render the analysis word-by-word as it arrives.
  * Proxy: POST /api/gemini/analyze/stream (SSE)
- * Direct: generateContentStream
+ * Model is caller-provided; defaults to gemini-3.1-pro-preview (today's fixed behavior).
  */
 export const analyzeCarImageStream = async (
   base64Image: string,
   prompt: string,
   mimeType: string = 'image/jpeg',
-  onChunk: (text: string) => void
+  onChunk: (text: string) => void,
+  model: string = 'gemini-3.1-pro-preview'
 ): Promise<void> => {
   if (USE_PROXY) {
     const res = await fetch('/api/gemini/analyze/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ base64Image, prompt, mimeType }),
+      body: JSON.stringify({ base64Image, prompt, mimeType, model }),
     });
 
     if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
@@ -198,7 +204,7 @@ export const analyzeCarImageStream = async (
   // Direct streaming — AI Studio / non-proxy mode
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const stream = await ai.models.generateContentStream({
-    model: 'gemini-3.1-pro-preview',
+    model,
     contents: {
       parts: [
         { inlineData: { mimeType, data: base64Image } },
@@ -215,17 +221,18 @@ export const analyzeCarImageStream = async (
 /**
  * Analyze a vehicle image and return structured text.
  * Proxy: POST /api/gemini/analyze
- * Direct: gemini-3.1-pro-preview
+ * Model is caller-provided; defaults to gemini-3.1-pro-preview (today's fixed behavior).
  */
 export const analyzeCarImage = async (
   base64Image: string,
   prompt: string,
-  mimeType: string = "image/jpeg"
+  mimeType: string = "image/jpeg",
+  model: string = 'gemini-3.1-pro-preview'
 ): Promise<string> => {
   if (USE_PROXY) {
     const { text } = await proxyPost<{ text: string }>(
       '/api/gemini/analyze',
-      { base64Image, prompt, mimeType }
+      { base64Image, prompt, mimeType, model }
     );
     return text;
   }
@@ -233,7 +240,7 @@ export const analyzeCarImage = async (
   // Direct call — AI Studio / non-proxy mode
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-pro-preview',
+    model,
     contents: {
       parts: [
         { inlineData: { mimeType, data: base64Image } },
