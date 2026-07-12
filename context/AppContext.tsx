@@ -31,6 +31,7 @@ import {
   PROMPT_REMOVE_BACKGROUND_TRANSPARENT,
   PROMPT_REMOVE_BACKGROUND_INTERIOR,
 } from '../constants/prompts';
+import { DEFAULT_MODEL_BY_MODE, isValidModel } from '../constants/models';
 
 // ─── context shape ────────────────────────────────────────────────────────────
 
@@ -73,6 +74,10 @@ export interface AppContextValue {
   setGenAspectRatio: (v: AspectRatio) => void;
   genImageSize: ImageSize;
   setGenImageSize: (v: ImageSize) => void;
+  modelByMode: Record<AppMode, string>;
+  setModelForMode: (mode: AppMode, modelId: string) => void;
+  imageSizeByMode: Record<AppMode, ImageSize>;
+  setImageSizeForMode: (mode: AppMode, size: ImageSize) => void;
 
   // loading
   loading: LoadingState;
@@ -159,6 +164,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [prompt, setPrompt] = useState('');
   const [genAspectRatio, setGenAspectRatio] = useState<AspectRatio>(AspectRatio.LANDSCAPE_16_9);
   const [genImageSize, setGenImageSize] = useState<ImageSize>(ImageSize.SIZE_2K);
+
+  const [modelByMode, setModelByModeState] = useState<Record<AppMode, string>>(() => {
+    const stored = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('autoshadow:models') ?? '{}');
+      } catch {
+        return {};
+      }
+    })();
+    const result = {} as Record<AppMode, string>;
+    (Object.values(AppMode) as AppMode[]).forEach(m => {
+      const storedValue = stored[m];
+      result[m] = storedValue && isValidModel(m, storedValue) ? storedValue : DEFAULT_MODEL_BY_MODE[m];
+    });
+    return result;
+  });
+
+  const setModelForMode = useCallback((targetMode: AppMode, modelId: string) => {
+    setModelByModeState(prev => {
+      const next = { ...prev, [targetMode]: modelId };
+      localStorage.setItem('autoshadow:models', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const [imageSizeByMode, setImageSizeByModeState] = useState<Record<AppMode, ImageSize>>(() => {
+    const stored = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('autoshadow:imageSizes') ?? '{}');
+      } catch {
+        return {};
+      }
+    })();
+    const result = {} as Record<AppMode, ImageSize>;
+    (Object.values(AppMode) as AppMode[]).forEach(m => {
+      const storedValue = stored[m];
+      const validSizes = Object.values(ImageSize) as string[];
+      result[m] = storedValue && validSizes.includes(storedValue) ? storedValue : ImageSize.SIZE_2K;
+    });
+    return result;
+  });
+
+  const setImageSizeForMode = useCallback((targetMode: AppMode, size: ImageSize) => {
+    setImageSizeByModeState(prev => {
+      const next = { ...prev, [targetMode]: size };
+      localStorage.setItem('autoshadow:imageSizes', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   // ── ui ──
   const [loading, setLoading] = useState<LoadingState>({ isLoading: false, message: '' });
@@ -629,6 +683,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setGenAspectRatio,
     genImageSize,
     setGenImageSize,
+    modelByMode,
+    setModelForMode,
+    imageSizeByMode,
+    setImageSizeForMode,
     loading,
     installPrompt,
     hasKey,
