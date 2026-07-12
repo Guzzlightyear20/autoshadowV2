@@ -3,6 +3,7 @@ import { AppMode, AspectRatio, ImageSize } from '../types';
 import { useApp } from '../context/AppContext';
 import { Button } from './Button';
 import { UploadIcon, SparkIcon, ScissorsIcon, CloseIcon } from './Icons';
+import ModelSelector from './ModelSelector';
 import {
   PROMPT_A_MIRROR,
   PROMPT_B_DARK,
@@ -231,6 +232,8 @@ const ControlsPanel: React.FC = () => {
       {/* ── Settings card ── */}
       <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 shadow-xl space-y-4">
         <h2 className="text-lg font-semibold text-white">Configuración</h2>
+
+        <ModelSelector />
 
         {/* Output dimensions (BACKGROUND_EDIT only) */}
         {mode === AppMode.BACKGROUND_EDIT && backgroundDims && (
