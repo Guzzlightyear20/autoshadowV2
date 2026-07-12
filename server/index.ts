@@ -4,12 +4,16 @@ import { GoogleGenAI } from '@google/genai';
 import * as dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { IMAGE_MODELS, TEXT_MODELS } from '../constants/models';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Load .env.local from project root
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
+
+const isAllowed = (list: { id: string }[], model: unknown): model is string =>
+  typeof model === 'string' && list.some(m => m.id === model);
 
 const app = express();
 const PORT = process.env.SERVER_PORT || 3001;
@@ -41,14 +45,17 @@ app.get('/api/health', (_req, res) => {
 // Shadow / background-removal edits
 app.post('/api/gemini/edit', async (req, res) => {
   try {
-    const { base64Image, prompt, mimeType = 'image/jpeg' } = req.body;
+    const { base64Image, prompt, mimeType = 'image/jpeg', model } = req.body;
     if (!base64Image || !prompt) {
       return res.status(400).json({ error: 'base64Image y prompt son requeridos.' });
+    }
+    if (!isAllowed(IMAGE_MODELS, model)) {
+      return res.status(400).json({ error: 'Modelo no permitido.' });
     }
 
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model,
       contents: {
         parts: [
           { inlineData: { mimeType, data: base64Image } },
@@ -70,14 +77,17 @@ app.post('/api/gemini/edit', async (req, res) => {
 // Vehicle + background composition
 app.post('/api/gemini/compose', async (req, res) => {
   try {
-    const { carImageBase64, carImageMimeType, templateImageBase64, templateImageMimeType, prompt } = req.body;
+    const { carImageBase64, carImageMimeType, templateImageBase64, templateImageMimeType, prompt, model, imageSize } = req.body;
     if (!carImageBase64 || !templateImageBase64 || !prompt) {
       return res.status(400).json({ error: 'Se requieren ambas imágenes y el prompt.' });
+    }
+    if (!isAllowed(IMAGE_MODELS, model)) {
+      return res.status(400).json({ error: 'Modelo no permitido.' });
     }
 
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-image-preview',
+      model,
       contents: {
         parts: [
           { text: 'IMAGE 1 (SOURCE VEHICLE):' },
@@ -88,7 +98,7 @@ app.post('/api/gemini/compose', async (req, res) => {
         ],
       },
       config: {
-        imageConfig: { imageSize: '2K' },
+        imageConfig: { imageSize },
       },
     });
 
@@ -105,12 +115,15 @@ app.post('/api/gemini/compose', async (req, res) => {
 // Text-to-image vehicle generation
 app.post('/api/gemini/generate', async (req, res) => {
   try {
-    const { prompt, aspectRatio, imageSize } = req.body;
+    const { prompt, aspectRatio, imageSize, model } = req.body;
     if (!prompt) return res.status(400).json({ error: 'El prompt es requerido.' });
+    if (!isAllowed(IMAGE_MODELS, model)) {
+      return res.status(400).json({ error: 'Modelo no permitido.' });
+    }
 
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-image-preview',
+      model,
       contents: { parts: [{ text: prompt }] },
       config: {
         imageConfig: { aspectRatio, imageSize },
@@ -130,14 +143,17 @@ app.post('/api/gemini/generate', async (req, res) => {
 // Vehicle image analysis
 app.post('/api/gemini/analyze', async (req, res) => {
   try {
-    const { base64Image, prompt, mimeType = 'image/jpeg' } = req.body;
+    const { base64Image, prompt, mimeType = 'image/jpeg', model } = req.body;
     if (!base64Image || !prompt) {
       return res.status(400).json({ error: 'base64Image y prompt son requeridos.' });
+    }
+    if (!isAllowed(TEXT_MODELS, model)) {
+      return res.status(400).json({ error: 'Modelo no permitido.' });
     }
 
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
+      model,
       contents: {
         parts: [
           { inlineData: { mimeType, data: base64Image } },
@@ -155,9 +171,12 @@ app.post('/api/gemini/analyze', async (req, res) => {
 
 // Vehicle analysis — streaming via Server-Sent Events
 app.post('/api/gemini/analyze/stream', async (req, res) => {
-  const { base64Image, prompt, mimeType = 'image/jpeg' } = req.body;
+  const { base64Image, prompt, mimeType = 'image/jpeg', model } = req.body;
   if (!base64Image || !prompt) {
     return res.status(400).json({ error: 'base64Image y prompt son requeridos.' });
+  }
+  if (!isAllowed(TEXT_MODELS, model)) {
+    return res.status(400).json({ error: 'Modelo no permitido.' });
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -168,7 +187,7 @@ app.post('/api/gemini/analyze/stream', async (req, res) => {
   try {
     const ai = getAI();
     const stream = await ai.models.generateContentStream({
-      model: 'gemini-3.1-pro-preview',
+      model,
       contents: {
         parts: [
           { inlineData: { mimeType, data: base64Image } },
