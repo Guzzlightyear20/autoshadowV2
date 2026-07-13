@@ -6,14 +6,14 @@ export interface ModelOption {
   costHint: 'low' | 'medium' | 'high';
 }
 
+// Only models confirmed to work against the live Gemini API are listed here.
+// gemini-2.0-flash was removed after the API returned 404 "no longer available".
 export const IMAGE_MODELS: ModelOption[] = [
   { id: 'gemini-2.5-flash-image', label: 'Gemini 2.5 Flash Image', costHint: 'low' },
-  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', costHint: 'low' },
   { id: 'gemini-3.1-flash-image-preview', label: 'Gemini 3.1 Flash Image (Preview)', costHint: 'high' },
 ];
 
 export const TEXT_MODELS: ModelOption[] = [
-  { id: 'gemini-3.1-flash', label: 'Gemini 3.1 Flash', costHint: 'low' },
   { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)', costHint: 'high' },
 ];
 
