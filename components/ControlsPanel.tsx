@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { Button } from './Button';
 import { UploadIcon, SparkIcon, ScissorsIcon, CloseIcon } from './Icons';
 import ModelSelector from './ModelSelector';
+import BackgroundPresetGallery from './BackgroundPresetGallery';
 import {
   PROMPT_A_MIRROR,
   PROMPT_B_DARK,
@@ -43,7 +44,6 @@ const ControlsPanel: React.FC = () => {
     removePrompt,
     forMode,
     fileInputRef,
-    backgroundFileInputRef,
     batchFileInputRef,
     handleFileChange,
     handleRemoveImage,
@@ -132,38 +132,11 @@ const ControlsPanel: React.FC = () => {
         </div>
       )}
 
-      {/* ── Background template upload ── */}
+      {/* ── Background template gallery ── */}
       {mode === AppMode.BACKGROUND_EDIT && (
         <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 shadow-xl">
           <h2 className="text-lg font-semibold text-white mb-4">Plantilla de Fondo (Estudio)</h2>
-          <div
-            className={`border-2 border-dashed rounded-xl h-48 flex flex-col items-center justify-center cursor-pointer transition-colors ${
-              backgroundPreviewUrl
-                ? 'border-slate-600 bg-slate-800/50'
-                : 'border-slate-700 hover:border-blue-500 hover:bg-slate-800/50'
-            }`}
-            onClick={() => backgroundFileInputRef.current?.click()}
-            style={
-              backgroundPreviewUrl
-                ? { backgroundImage: `url(${backgroundPreviewUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-                : {}
-            }
-          >
-            {!backgroundPreviewUrl && (
-              <>
-                <UploadIcon />
-                <p className="text-sm text-slate-400 font-medium">Click para subir plantilla</p>
-                <p className="text-xs text-slate-500 mt-1">JPG, PNG</p>
-              </>
-            )}
-            <input
-              type="file"
-              ref={backgroundFileInputRef}
-              className="hidden"
-              accept="image/*"
-              onChange={e => handleFileChange(e, false, 'background')}
-            />
-          </div>
+          <BackgroundPresetGallery />
           {backgroundPreviewUrl && (
             <button
               onClick={e => handleRemoveImage(e, false, undefined, 'background')}
