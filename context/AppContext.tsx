@@ -57,6 +57,9 @@ export interface AppContextValue {
   setOutputWidth: (v: number) => void;
   setOutputHeight: (v: number) => void;
   setVehicleScale: (v: number) => void;
+  setBackgroundFile: (file: File) => void;
+  selectedPresetId: string | null;
+  setSelectedPresetId: (id: string | null) => void;
 
   // remove-bg
   removeBgType: 'white' | 'transparent';
@@ -152,6 +155,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [outputWidth, setOutputWidth] = useState(0);
   const [outputHeight, setOutputHeight] = useState(0);
   const [vehicleScale, setVehicleScale] = useState(85);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
 
   // ── remove-bg ──
   const [removeBgType, setRemoveBgType] = useState<'white' | 'transparent'>('white');
@@ -276,6 +280,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // ── file handlers ──
 
+  const setBackgroundFile = useCallback((file: File) => {
+    setSelectedBackgroundFile(file);
+    const url = URL.createObjectURL(file);
+    setBackgroundPreviewUrl(url);
+    const img = new Image();
+    img.onload = () => {
+      setBackgroundDims({ w: img.width, h: img.height });
+      setOutputWidth(img.width);
+      setOutputHeight(img.height);
+    };
+    img.src = url;
+  }, []);
+
   const handleFileChange = useCallback(
     (
       event: React.ChangeEvent<HTMLInputElement>,
@@ -319,22 +336,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           img.onload = () => setOriginalDims({ w: img.width, h: img.height });
           img.src = url;
         } else {
-          setSelectedBackgroundFile(file);
-          const url = URL.createObjectURL(file);
-          setBackgroundPreviewUrl(url);
-          const img = new Image();
-          img.onload = () => {
-            setBackgroundDims({ w: img.width, h: img.height });
-            setOutputWidth(img.width);
-            setOutputHeight(img.height);
-          };
-          img.src = url;
+          setBackgroundFile(file);
+          setSelectedPresetId(null);
         }
       }
 
       if (event.target) event.target.value = '';
     },
-    [selectedBatchItems.length]
+    [selectedBatchItems.length, setBackgroundFile]
   );
 
   const handleRemoveImage = useCallback(
@@ -356,6 +365,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         setSelectedBackgroundFile(null);
         setBackgroundPreviewUrl(null);
+        setSelectedPresetId(null);
         if (backgroundFileInputRef.current) backgroundFileInputRef.current.value = '';
       }
     },
@@ -642,6 +652,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setBackgroundDims(null);
     setOutputWidth(0);
     setOutputHeight(0);
+    setSelectedPresetId(null);
     setSelectedBatchItems([]);
     setResultBatchItems([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -679,6 +690,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setOutputWidth,
     setOutputHeight,
     setVehicleScale,
+    setBackgroundFile,
+    selectedPresetId,
+    setSelectedPresetId,
     removeBgType,
     setRemoveBgType,
     selectedBatchItems,
