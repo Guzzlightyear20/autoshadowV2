@@ -299,7 +299,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       cancelled = true;
     };
-  }, [mode, selectedFile, modelByMode]);
+  }, [mode, selectedFile, modelByMode[AppMode.REMOVE_BACKGROUND]]);
 
   // ── pwa / key handlers ──
 
