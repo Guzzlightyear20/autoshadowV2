@@ -12,9 +12,9 @@ import {
   generateCarImage,
   analyzeCarImage,
   analyzeCarImageStream,
-  composeCarWithBackground,
 } from '../services/geminiService';
 import {
+  compositeCarOntoBackground,
   compressImageForAPI,
   fileToBase64,
   processWithConcurrency,
@@ -26,7 +26,7 @@ import { usePromptLibrary } from '../hooks/usePromptLibrary';
 import {
   PROMPT_A_MIRROR,
   PROMPT_B_DARK,
-  PROMPT_C_BACKGROUND,
+  PROMPT_SHADOW_FINISH,
   PROMPT_REMOVE_BACKGROUND_WHITE,
   PROMPT_REMOVE_BACKGROUND_TRANSPARENT,
   PROMPT_REMOVE_BACKGROUND_INTERIOR,
@@ -470,29 +470,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else if (mode === AppMode.BACKGROUND_EDIT) {
           if (!selectedFile || !selectedBackgroundFile)
             throw new Error('Por favor, sube ambas imágenes: la del auto y la plantilla de fondo.');
-          const carBase64 = await compressImageForAPI(selectedFile);
+          if (!carCutoutUrl)
+            throw new Error('Espera a que se termine de quitar el fondo del auto.');
           const backgroundBase64 = await compressImageForAPI(selectedBackgroundFile);
-          const dynamicPrompt = PROMPT_C_BACKGROUND.replace(
-            '5) SCALING: Scale the car to occupy 85-90% of the width of the background',
-            `5) SCALING: Scale the car to occupy exactly ${vehicleScale}% of the width of the background`
-          );
-          const composedImage = await composeCarWithBackground(
-            carBase64,
-            selectedFile.type,
+          const canvasWidth = outputWidth || backgroundDims?.w || 1024;
+          const canvasHeight = outputHeight || backgroundDims?.h || 1024;
+          const composited = await compositeCarOntoBackground(
+            carCutoutUrl,
             backgroundBase64,
-            selectedBackgroundFile.type,
-            dynamicPrompt,
-            modelByMode[AppMode.BACKGROUND_EDIT],
-            imageSizeByMode[AppMode.BACKGROUND_EDIT]
+            canvasWidth,
+            canvasHeight,
+            bgMarginPercent,
+            bgPositionMode === 'custom' ? bgCustomOffset.x : 0,
+            bgPositionMode === 'custom' ? bgCustomOffset.y : 0
           );
-          if (backgroundDims) {
-            const resized = await resizeBase64Image(composedImage, backgroundDims.w, backgroundDims.h);
-            setResultImage(resized);
-            saveToHistory(resized, null, dynamicPrompt, selectedFile.name);
-          } else {
-            setResultImage(composedImage);
-            saveToHistory(composedImage, null, dynamicPrompt, selectedFile.name);
-          }
+          const compositedBase64 = composited.split(',')[1];
+          const finalImage = await editCarImage(
+            compositedBase64,
+            PROMPT_SHADOW_FINISH,
+            'image/png',
+            modelByMode[AppMode.BACKGROUND_EDIT]
+          );
+          setResultImage(finalImage);
+          saveToHistory(finalImage, null, 'Edición de Fondos: Posición + Sombra', selectedFile.name);
 
         } else if (mode === AppMode.GENERATE) {
           const generated = await generateCarImage(promptToUse, genAspectRatio, genImageSize, modelByMode[AppMode.GENERATE]);
@@ -565,9 +565,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     },
     [
-      mode, prompt, selectedFile, selectedBackgroundFile, backgroundDims, vehicleScale,
+      mode, prompt, selectedFile, selectedBackgroundFile, backgroundDims, outputWidth, outputHeight,
+      carCutoutUrl, bgMarginPercent, bgPositionMode, bgCustomOffset,
       removeBgType, selectedBatchItems, genAspectRatio, genImageSize, saveToHistory,
-      modelByMode, imageSizeByMode,
+      modelByMode,
     ]
   );
 
@@ -645,29 +646,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             alert('Para "Estudio Completo" necesitas subir también la plantilla de fondo.');
             return;
           }
+          if (!carCutoutUrl) {
+            alert('Espera a que se termine de quitar el fondo del auto.');
+            return;
+          }
 
-          // Step 1: Remove background
-          setLoading({ isLoading: true, message: 'Paso 1/2: Removiendo fondo del auto…' });
-          const noBg = await editCarImage(base64, PROMPT_REMOVE_BACKGROUND_WHITE, selectedFile.type, modelByMode[AppMode.REMOVE_BACKGROUND]);
-          const noBgBase64 = noBg.split(',')[1];
-
-          // Step 2: Compose onto background template
-          setLoading({ isLoading: true, message: 'Paso 2/2: Componiendo con plantilla de estudio…' });
+          setLoading({ isLoading: true, message: 'Paso 1/2: Componiendo con plantilla de estudio…' });
           const bgBase64 = await compressImageForAPI(selectedBackgroundFile);
-          const dynamicPrompt = PROMPT_C_BACKGROUND.replace(
-            '5) SCALING: Scale the car to occupy 85-90% of the width of the background',
-            `5) SCALING: Scale the car to occupy exactly ${vehicleScale}% of the width of the background`
+          const canvasWidth = outputWidth || backgroundDims?.w || 1024;
+          const canvasHeight = outputHeight || backgroundDims?.h || 1024;
+          const composited = await compositeCarOntoBackground(
+            carCutoutUrl,
+            bgBase64,
+            canvasWidth,
+            canvasHeight,
+            bgMarginPercent,
+            bgPositionMode === 'custom' ? bgCustomOffset.x : 0,
+            bgPositionMode === 'custom' ? bgCustomOffset.y : 0
           );
-          const composed = await composeCarWithBackground(
-            noBgBase64, 'image/png',
-            bgBase64, selectedBackgroundFile.type,
-            dynamicPrompt,
-            modelByMode[AppMode.BACKGROUND_EDIT],
-            imageSizeByMode[AppMode.BACKGROUND_EDIT]
+          const compositedBase64 = composited.split(',')[1];
+
+          setLoading({ isLoading: true, message: 'Paso 2/2: Agregando sombra y reflejo…' });
+          const finalImage = await editCarImage(
+            compositedBase64,
+            PROMPT_SHADOW_FINISH,
+            'image/png',
+            modelByMode[AppMode.BACKGROUND_EDIT]
           );
-          const finalImage = backgroundDims
-            ? await resizeBase64Image(composed, backgroundDims.w, backgroundDims.h)
-            : composed;
           setResultImage(finalImage);
           saveToHistory(finalImage, null, 'Flujo: Sin Fondo + Fondo Estudio', selectedFile.name);
         }
@@ -678,7 +683,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLoading({ isLoading: false, message: '' });
       }
     },
-    [selectedFile, selectedBackgroundFile, vehicleScale, backgroundDims, saveToHistory, modelByMode, imageSizeByMode]
+    [
+      selectedFile, selectedBackgroundFile, backgroundDims, outputWidth, outputHeight,
+      carCutoutUrl, bgMarginPercent, bgPositionMode, bgCustomOffset, saveToHistory, modelByMode,
+    ]
   );
 
   // ── resetState ──
