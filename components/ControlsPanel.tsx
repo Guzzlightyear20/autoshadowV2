@@ -5,6 +5,7 @@ import { Button } from './Button';
 import { UploadIcon, SparkIcon, ScissorsIcon, CloseIcon } from './Icons';
 import ModelSelector from './ModelSelector';
 import BackgroundPresetGallery from './BackgroundPresetGallery';
+import BackgroundPositionPreview from './BackgroundPositionPreview';
 import {
   PROMPT_A_MIRROR,
   PROMPT_B_DARK,
@@ -24,10 +25,10 @@ const ControlsPanel: React.FC = () => {
     backgroundDims,
     outputWidth,
     outputHeight,
-    vehicleScale,
     setOutputWidth,
     setOutputHeight,
-    setVehicleScale,
+    carCutoutUrl,
+    removingBackground,
     removeBgType,
     setRemoveBgType,
     selectedBatchItems,
@@ -244,27 +245,8 @@ const ControlsPanel: React.FC = () => {
           </div>
         )}
 
-        {/* Vehicle scale slider (BACKGROUND_EDIT only) */}
-        {mode === AppMode.BACKGROUND_EDIT && (
-          <div className="space-y-3 p-3 bg-slate-950 rounded-xl border border-slate-800">
-            <label className="text-xs font-bold uppercase text-emerald-400 tracking-wider flex justify-between items-center">
-              <span>Tamaño del Auto (%)</span>
-              <span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-[10px]">{vehicleScale}%</span>
-            </label>
-            <input
-              type="range"
-              min="30"
-              max="100"
-              step="1"
-              value={vehicleScale}
-              onChange={e => setVehicleScale(parseInt(e.target.value))}
-              className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-            />
-            <div className="flex justify-between text-[10px] text-slate-600 font-medium">
-              <span>Pequeño</span><span>Medio</span><span>Grande</span>
-            </div>
-          </div>
-        )}
+        {/* Position + margin preview (BACKGROUND_EDIT only) */}
+        {mode === AppMode.BACKGROUND_EDIT && <BackgroundPositionPreview />}
 
         {/* Remove-bg type toggle */}
         {(mode === AppMode.REMOVE_BACKGROUND || mode === AppMode.BATCH_EDIT_SHADOW) && (
@@ -482,7 +464,8 @@ const ControlsPanel: React.FC = () => {
             className="w-full mt-4"
             disabled={
               (!selectedFile && mode !== AppMode.GENERATE) ||
-              (mode === AppMode.BACKGROUND_EDIT && (!selectedFile || !selectedBackgroundFile))
+              (mode === AppMode.BACKGROUND_EDIT &&
+                (!selectedFile || !selectedBackgroundFile || removingBackground || !carCutoutUrl))
             }
           >
             {!loading.isLoading && <SparkIcon />}
@@ -520,16 +503,16 @@ const ControlsPanel: React.FC = () => {
               Sin Fondo → Sombra Espejo
             </Button>
 
-            {/* Estudio Completo — only when background template is loaded */}
+            {/* Estudio Completo — only when background template is loaded and the cutout is ready */}
             <Button
               onClick={() => handleChainedAction('studio-complete')}
               isLoading={loading.isLoading}
               className={`w-full text-white shadow-lg shadow-purple-900/40 transition-all ${
-                selectedBackgroundFile
+                selectedBackgroundFile && carCutoutUrl && !removingBackground
                   ? 'bg-purple-700 hover:bg-purple-600'
                   : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
               }`}
-              disabled={!selectedFile || !selectedBackgroundFile}
+              disabled={!selectedFile || !selectedBackgroundFile || removingBackground || !carCutoutUrl}
             >
               {!loading.isLoading && <SparkIcon />}
               {selectedBackgroundFile

@@ -15,7 +15,7 @@ const ModelSelector: React.FC = () => {
   const options = MODELS_FOR_MODE(mode);
   const selected = modelByMode[mode];
   const selectedOption = options.find(o => o.id === selected);
-  const showImageSize = mode === AppMode.BACKGROUND_EDIT;
+  const showImageSize = mode === AppMode.GENERATE;
 
   return (
     <div className="space-y-3 p-3 bg-slate-950 rounded-xl border border-slate-800">
