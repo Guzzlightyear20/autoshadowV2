@@ -8,22 +8,16 @@ export const PROMPT_A_MIRROR =
 export const PROMPT_B_DARK =
   "Based strictly on image, the vehicle pictured now casts a realistic, soft contact shadow on the surface directly beneath it. This shadow is darkest immediately under the tires and chassis to anchor the car to the ground, and fades gently outwards. All other elements of image, including the vehicle's specific appearance, the entire background environment, original lighting, reflections, and any text or graphics present in the frame, remain absolutely identical to the original source image.";
 
-export const PROMPT_C_BACKGROUND = `TRIGGER: "Edición de Fondos" (BACKGROUND EDIT)
-ACTIVATE PROMPT C: You will receive two images:
-IMAGE 1: The SOURCE VEHICLE.
-IMAGE 2: The BACKGROUND TEMPLATE.
+export const PROMPT_SHADOW_FINISH = `TASK: Add realistic contact shadow and reflection to an already-composited scene.
+You will receive a single image: a vehicle already placed onto a background scene, both flattened into one image.
 
 STRICT INSTRUCTIONS:
-1) ABSOLUTE IDENTITY PRESERVATION: The vehicle in the final result MUST be the EXACT SAME vehicle from IMAGE 1. This is a "cut and paste" operation. DO NOT generate a new car. DO NOT modify the car's model, year, color, wheels, trim, or any specific details. It must be a pixel-perfect extraction.
-2) NO RE-IMAGINING: Do not change the car's pose, angle, or perspective. It must look exactly as it does in IMAGE 1, just placed in a new environment.
-3) EXTRACTION: Isolate the car from IMAGE 1 with professional precision. Remove every pixel of the original background.
-4) COMPOSITION: Place the extracted car from IMAGE 1 onto the BACKGROUND TEMPLATE (IMAGE 2).
-5) SCALING: Scale the car to occupy 85-90% of the width of the background.
-6) INTEGRATION:
-   - Create realistic contact shadows under the tires to anchor it to the floor of IMAGE 2.
-   - Add a sharp mirror reflection of the car on the glossy floor of the template.
-   - Adjust the car's lighting and color balance ONLY to match the studio lighting of IMAGE 2, while keeping the car's original color and features intact.
-7) BACKGROUND INTEGRITY: Do not modify any text, logos, or design elements of the BACKGROUND TEMPLATE (IMAGE 2).`;
+1) DO NOT move, resize, rotate, or reposition the vehicle in any way. Its placement, scale, and pose are already final and correct.
+2) DO NOT modify the vehicle's model, color, wheels, trim, or any specific details.
+3) Add a realistic, soft contact shadow beneath the vehicle, darkest and sharpest directly under the tires, to visually anchor it to the floor.
+4) If the floor surface looks glossy/reflective, add a subtle mirror reflection of the vehicle's underside.
+5) Adjust ONLY the vehicle's lighting and color balance to match the ambient lighting/color temperature of the background scene, while keeping its original color and features intact.
+6) Do not modify the background itself (text, logos, design elements) beyond adding the shadow/reflection.`;
 
 export const PROMPT_REMOVE_BACKGROUND_WHITE = `Actúa como un retocador fotográfico automotriz de alta gama. Tu objetivo es procesar la imagen adjunta del vehículo para adaptarla a un estándar de exhibición de estudio profesional. Ejecuta las siguientes instrucciones con precisión:
 
