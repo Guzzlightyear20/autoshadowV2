@@ -18,7 +18,6 @@ import {
   compressImageForAPI,
   fileToBase64,
   processWithConcurrency,
-  resizeBase64Image,
   retryWithBackoff,
 } from '../utils';
 import { historyDB } from '../hooks/useImageHistory';
