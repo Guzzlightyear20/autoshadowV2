@@ -53,13 +53,19 @@ export interface AppContextValue {
   backgroundDims: { w: number; h: number } | null;
   outputWidth: number;
   outputHeight: number;
-  vehicleScale: number;
   setOutputWidth: (v: number) => void;
   setOutputHeight: (v: number) => void;
-  setVehicleScale: (v: number) => void;
   setBackgroundFile: (file: File) => void;
   selectedPresetId: string | null;
   setSelectedPresetId: (id: string | null) => void;
+  carCutoutUrl: string | null;
+  removingBackground: boolean;
+  bgPositionMode: 'center' | 'custom';
+  setBgPositionMode: (v: 'center' | 'custom') => void;
+  bgMarginPercent: number;
+  setBgMarginPercent: (v: number) => void;
+  bgCustomOffset: { x: number; y: number };
+  setBgCustomOffset: (v: { x: number; y: number }) => void;
 
   // remove-bg
   removeBgType: 'white' | 'transparent';
@@ -154,8 +160,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [backgroundDims, setBackgroundDims] = useState<{ w: number; h: number } | null>(null);
   const [outputWidth, setOutputWidth] = useState(0);
   const [outputHeight, setOutputHeight] = useState(0);
-  const [vehicleScale, setVehicleScale] = useState(85);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [carCutoutUrl, setCarCutoutUrl] = useState<string | null>(null);
+  const [removingBackground, setRemovingBackground] = useState(false);
+  const [bgPositionMode, setBgPositionMode] = useState<'center' | 'custom'>('center');
+  const [bgMarginPercent, setBgMarginPercent] = useState(12);
+  const [bgCustomOffset, setBgCustomOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // ── remove-bg ──
   const [removeBgType, setRemoveBgType] = useState<'white' | 'transparent'>('white');
@@ -258,6 +268,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
+
+  // Auto-remove the car's background as soon as a photo is present in BACKGROUND_EDIT
+  // mode, so the position/margin preview has a real cutout instead of an approximation.
+  useEffect(() => {
+    if (mode !== AppMode.BACKGROUND_EDIT || !selectedFile) {
+      return;
+    }
+    let cancelled = false;
+    setCarCutoutUrl(null);
+    setRemovingBackground(true);
+    (async () => {
+      try {
+        const base64 = await compressImageForAPI(selectedFile);
+        const cutout = await editCarImage(
+          base64,
+          PROMPT_REMOVE_BACKGROUND_TRANSPARENT,
+          selectedFile.type,
+          modelByMode[AppMode.REMOVE_BACKGROUND]
+        );
+        if (!cancelled) setCarCutoutUrl(cutout);
+      } catch (error) {
+        if (!cancelled) {
+          const msg = error instanceof Error ? error.message : String(error);
+          alert(`Error al quitar el fondo del auto: ${msg}`);
+        }
+      } finally {
+        if (!cancelled) setRemovingBackground(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, selectedFile, modelByMode]);
 
   // ── pwa / key handlers ──
 
@@ -653,6 +696,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setOutputWidth(0);
     setOutputHeight(0);
     setSelectedPresetId(null);
+    setCarCutoutUrl(null);
+    setRemovingBackground(false);
+    setBgPositionMode('center');
+    setBgMarginPercent(12);
+    setBgCustomOffset({ x: 0, y: 0 });
     setSelectedBatchItems([]);
     setResultBatchItems([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -686,13 +734,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     backgroundDims,
     outputWidth,
     outputHeight,
-    vehicleScale,
     setOutputWidth,
     setOutputHeight,
-    setVehicleScale,
     setBackgroundFile,
     selectedPresetId,
     setSelectedPresetId,
+    carCutoutUrl,
+    removingBackground,
+    bgPositionMode,
+    setBgPositionMode,
+    bgMarginPercent,
+    setBgMarginPercent,
+    bgCustomOffset,
+    setBgCustomOffset,
     removeBgType,
     setRemoveBgType,
     selectedBatchItems,
