@@ -467,16 +467,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           saveToHistory(editedImage, null, finalPrompt, selectedFile.name);
 
         } else if (mode === AppMode.BACKGROUND_EDIT) {
-          if (!selectedFile || !selectedBackgroundFile)
+          if (!selectedFile || !selectedBackgroundFile || !backgroundPreviewUrl)
             throw new Error('Por favor, sube ambas imágenes: la del auto y la plantilla de fondo.');
           if (!carCutoutUrl)
             throw new Error('Espera a que se termine de quitar el fondo del auto.');
-          const backgroundBase64 = await compressImageForAPI(selectedBackgroundFile);
           const canvasWidth = outputWidth || backgroundDims?.w || 1024;
           const canvasHeight = outputHeight || backgroundDims?.h || 1024;
           const composited = await compositeCarOntoBackground(
             carCutoutUrl,
-            backgroundBase64,
+            backgroundPreviewUrl,
             canvasWidth,
             canvasHeight,
             bgMarginPercent,
@@ -564,7 +563,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     },
     [
-      mode, prompt, selectedFile, selectedBackgroundFile, backgroundDims, outputWidth, outputHeight,
+      mode, prompt, selectedFile, selectedBackgroundFile, backgroundPreviewUrl, backgroundDims, outputWidth, outputHeight,
       carCutoutUrl, bgMarginPercent, bgPositionMode, bgCustomOffset,
       removeBgType, selectedBatchItems, genAspectRatio, genImageSize, saveToHistory,
       modelByMode,
@@ -641,7 +640,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           saveToHistory(withShadow, null, 'Flujo: Sin Fondo + Sombra Espejo', selectedFile.name);
 
         } else if (flow === 'studio-complete') {
-          if (!selectedBackgroundFile) {
+          if (!selectedBackgroundFile || !backgroundPreviewUrl) {
             alert('Para "Estudio Completo" necesitas subir también la plantilla de fondo.');
             return;
           }
@@ -651,12 +650,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
           setLoading({ isLoading: true, message: 'Paso 1/2: Componiendo con plantilla de estudio…' });
-          const bgBase64 = await compressImageForAPI(selectedBackgroundFile);
           const canvasWidth = outputWidth || backgroundDims?.w || 1024;
           const canvasHeight = outputHeight || backgroundDims?.h || 1024;
           const composited = await compositeCarOntoBackground(
             carCutoutUrl,
-            bgBase64,
+            backgroundPreviewUrl,
             canvasWidth,
             canvasHeight,
             bgMarginPercent,
@@ -683,7 +681,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     },
     [
-      selectedFile, selectedBackgroundFile, backgroundDims, outputWidth, outputHeight,
+      selectedFile, selectedBackgroundFile, backgroundPreviewUrl, backgroundDims, outputWidth, outputHeight,
       carCutoutUrl, bgMarginPercent, bgPositionMode, bgCustomOffset, saveToHistory, modelByMode,
     ]
   );

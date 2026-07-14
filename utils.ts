@@ -246,10 +246,10 @@ export const compositeCarOntoBackground = (
         ctx.drawImage(carImg, carDrawX, carDrawY, carDrawW, carDrawH);
         resolve(canvas.toDataURL('image/png'));
       };
-      carImg.onerror = (error) => reject(error);
+      carImg.onerror = () => reject(new Error('No se pudo cargar el recorte del auto.'));
       carImg.src = carCutoutBase64;
     };
-    bgImg.onerror = (error) => reject(error);
+    bgImg.onerror = () => reject(new Error('No se pudo cargar la imagen de fondo.'));
     bgImg.src = backgroundBase64;
   });
 };
