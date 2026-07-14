@@ -68,54 +68,6 @@ export const editCarImage = async (
 };
 
 /**
- * Compose a vehicle onto a background template.
- * Proxy: POST /api/gemini/compose
- * Model and imageSize are caller-provided — see constants/models.ts for the catalog and per-mode defaults.
- */
-export const composeCarWithBackground = async (
-  carImageBase64: string,
-  carImageMimeType: string,
-  templateImageBase64: string,
-  templateImageMimeType: string,
-  prompt: string,
-  model: string,
-  imageSize: ImageSize
-): Promise<string> => {
-  if (USE_PROXY) {
-    const { imageData } = await proxyPost<{ imageData: string }>(
-      '/api/gemini/compose',
-      { carImageBase64, carImageMimeType, templateImageBase64, templateImageMimeType, prompt, model, imageSize }
-    );
-    return `data:image/png;base64,${imageData}`;
-  }
-
-  // Direct call — AI Studio / non-proxy mode
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const response = await ai.models.generateContent({
-    model,
-    contents: {
-      parts: [
-        { text: 'IMAGE 1 (SOURCE VEHICLE):' },
-        { inlineData: { mimeType: carImageMimeType, data: carImageBase64 } },
-        { text: 'IMAGE 2 (BACKGROUND TEMPLATE):' },
-        { inlineData: { mimeType: templateImageMimeType, data: templateImageBase64 } },
-        { text: prompt },
-      ],
-    },
-    config: {
-      imageConfig: { imageSize },
-    },
-  });
-
-  if (response.candidates?.[0]?.content?.parts) {
-    for (const part of response.candidates[0].content.parts) {
-      if (part.inlineData?.data) return `data:image/png;base64,${part.inlineData.data}`;
-    }
-  }
-  throw new Error("No se pudo generar la imagen compuesta.");
-};
-
-/**
  * Generate a new vehicle image from a text prompt.
  * Proxy: POST /api/gemini/generate
  * Model is caller-provided — see constants/models.ts for the catalog and per-mode defaults.

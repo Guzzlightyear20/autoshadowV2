@@ -78,47 +78,6 @@ app.post('/api/gemini/edit', async (req, res) => {
   }
 });
 
-// Vehicle + background composition
-app.post('/api/gemini/compose', async (req, res) => {
-  try {
-    const { carImageBase64, carImageMimeType, templateImageBase64, templateImageMimeType, prompt, model, imageSize } = req.body;
-    if (!carImageBase64 || !templateImageBase64 || !prompt) {
-      return res.status(400).json({ error: 'Se requieren ambas imágenes y el prompt.' });
-    }
-    if (!isAllowed(IMAGE_MODELS, model)) {
-      return res.status(400).json({ error: 'Modelo no permitido.' });
-    }
-    if (!isValidImageSize(imageSize)) {
-      return res.status(400).json({ error: 'imageSize no permitido.' });
-    }
-
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-      model,
-      contents: {
-        parts: [
-          { text: 'IMAGE 1 (SOURCE VEHICLE):' },
-          { inlineData: { mimeType: carImageMimeType, data: carImageBase64 } },
-          { text: 'IMAGE 2 (BACKGROUND TEMPLATE):' },
-          { inlineData: { mimeType: templateImageMimeType, data: templateImageBase64 } },
-          { text: prompt },
-        ],
-      },
-      config: {
-        imageConfig: { imageSize },
-      },
-    });
-
-    const imageData = extractImageData(response);
-    if (!imageData) return res.status(500).json({ error: 'No se generó imagen en la respuesta.' });
-
-    res.json({ imageData });
-  } catch (error: any) {
-    console.error('[POST /api/gemini/compose]', error?.message);
-    res.status(500).json({ error: error?.message ?? 'Error interno del servidor.' });
-  }
-});
-
 // Text-to-image vehicle generation
 app.post('/api/gemini/generate', async (req, res) => {
   try {
