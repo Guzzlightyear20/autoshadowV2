@@ -186,6 +186,75 @@ export const resizeBase64Image = (
 };
 
 /**
+ * Composite a transparent car cutout onto a background image using pure canvas math —
+ * no AI involved. Used for both the live position/margin preview and the final image
+ * handed to Gemini's shadow-finishing pass, so the preview is always exact.
+ *
+ * The background fills the canvas (like CSS `background-size: cover`). The car is
+ * scaled to fit within `(100 - 2 * marginPercent)%` of the canvas width/height
+ * (whichever is more constraining, preserving its aspect ratio), then centered and
+ * shifted by `offsetX`/`offsetY` (fractions of canvas width/height, 0 = centered).
+ */
+export const compositeCarOntoBackground = (
+  carCutoutBase64: string,
+  backgroundBase64: string,
+  canvasWidth: number,
+  canvasHeight: number,
+  marginPercent: number,
+  offsetX: number,
+  offsetY: number
+): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const bgImg = new Image();
+    bgImg.onload = () => {
+      const carImg = new Image();
+      carImg.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'));
+          return;
+        }
+
+        // Draw the background covering the full canvas (like CSS background-size: cover)
+        const bgScale = Math.max(canvasWidth / bgImg.width, canvasHeight / bgImg.height);
+        const bgDrawW = bgImg.width * bgScale;
+        const bgDrawH = bgImg.height * bgScale;
+        const bgDrawX = (canvasWidth - bgDrawW) / 2;
+        const bgDrawY = (canvasHeight - bgDrawH) / 2;
+        ctx.drawImage(bgImg, bgDrawX, bgDrawY, bgDrawW, bgDrawH);
+
+        // Fit the car within (100 - 2*marginPercent)% of the canvas, preserving aspect ratio
+        const availableFraction = Math.max(0.05, 1 - (marginPercent / 100) * 2);
+        const maxCarWidth = canvasWidth * availableFraction;
+        const maxCarHeight = canvasHeight * availableFraction;
+        const carAspect = carImg.width / carImg.height;
+        let carDrawW = maxCarWidth;
+        let carDrawH = carDrawW / carAspect;
+        if (carDrawH > maxCarHeight) {
+          carDrawH = maxCarHeight;
+          carDrawW = carDrawH * carAspect;
+        }
+
+        const centerX = canvasWidth / 2 + offsetX * canvasWidth;
+        const centerY = canvasHeight / 2 + offsetY * canvasHeight;
+        const carDrawX = centerX - carDrawW / 2;
+        const carDrawY = centerY - carDrawH / 2;
+
+        ctx.drawImage(carImg, carDrawX, carDrawY, carDrawW, carDrawH);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      carImg.onerror = (error) => reject(error);
+      carImg.src = carCutoutBase64;
+    };
+    bgImg.onerror = (error) => reject(error);
+    bgImg.src = backgroundBase64;
+  });
+};
+
+/**
  * Share an image via Web Share API (mobile/modern browsers).
  * Falls back to copying the data URL to the clipboard.
  * Returns: 'shared' | 'copied' | 'unsupported'
