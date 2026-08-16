@@ -288,6 +288,13 @@ export const chromaKeyToTransparent = (
       const data = imageData.data;
       const featherRange = tolerance * 0.6;
 
+      // For a magenta key specifically (R and B both high, G low), backdrop spill
+      // on glossy surfaces near the silhouette shows up as R and B rising together
+      // above G — a signature no normal car paint color produces on its own. Kept
+      // pixels get that shared excess pulled back out, suppressing the spill without
+      // touching genuinely red or blue paint (which only elevates one channel).
+      const isMagentaKey = keyColor.g < 64 && keyColor.r > 191 && keyColor.b > 191;
+
       for (let i = 0; i < data.length; i += 4) {
         const dr = data[i] - keyColor.r;
         const dg = data[i + 1] - keyColor.g;
@@ -296,9 +303,19 @@ export const chromaKeyToTransparent = (
 
         if (distance < tolerance) {
           data[i + 3] = 0;
+          continue;
         } else if (distance < tolerance + featherRange) {
           const t = (distance - tolerance) / featherRange;
           data[i + 3] = Math.round(data[i + 3] * t);
+        }
+
+        if (isMagentaKey && data[i + 3] > 0) {
+          const spill = Math.min(data[i] - data[i + 1], data[i + 2] - data[i + 1]);
+          if (spill > 0) {
+            const correction = Math.min(spill, 60);
+            data[i] -= correction;
+            data[i + 2] -= correction;
+          }
         }
       }
 
