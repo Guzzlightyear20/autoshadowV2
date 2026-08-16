@@ -257,14 +257,19 @@ export const compositeCarOntoBackground = (
 /**
  * Chroma-key an image: turns pixels close to `keyColor` transparent, with a soft
  * feathered edge to avoid hard jagged silhouettes / color fringing. Used to convert
- * a flat-color "greenscreen" image (from PROMPT_REMOVE_BACKGROUND_GREENSCREEN) into a
- * real transparent PNG — deterministic, unlike asking a generative model for alpha
+ * a flat-color backdrop image (from PROMPT_REMOVE_BACKGROUND_CHROMAKEY) into a real
+ * transparent PNG — deterministic, unlike asking a generative model for alpha
  * directly, which it cannot reliably produce.
+ *
+ * Default key color is magenta, not the VFX-standard green — green backdrops kept
+ * overlapping with the cool, slightly green-tinted reflections common on silver/gray
+ * metallic car paint, turning real body panels semi-transparent. Magenta essentially
+ * never occurs in vehicle paint, glass, chrome, or tires.
  */
 export const chromaKeyToTransparent = (
   imageDataUrl: string,
-  keyColor: { r: number; g: number; b: number } = { r: 0, g: 255, b: 0 },
-  tolerance: number = 90
+  keyColor: { r: number; g: number; b: number } = { r: 255, g: 0, b: 255 },
+  tolerance: number = 70
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
