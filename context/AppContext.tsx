@@ -29,7 +29,7 @@ import {
   PROMPT_ANALYZE_DEFAULT,
   PROMPT_SHADOW_FINISH,
   PROMPT_REMOVE_BACKGROUND_WHITE,
-  PROMPT_REMOVE_BACKGROUND_CHROMAKEY,
+  PROMPT_REMOVE_BACKGROUND_GREENSCREEN,
   PROMPT_REMOVE_BACKGROUND_INTERIOR,
 } from '../constants/prompts';
 import { DEFAULT_MODEL_BY_MODE, isValidModel } from '../constants/models';
@@ -284,7 +284,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const base64 = await compressImageForAPI(selectedFile);
         const greenscreen = await editCarImage(
           base64,
-          PROMPT_REMOVE_BACKGROUND_CHROMAKEY,
+          PROMPT_REMOVE_BACKGROUND_GREENSCREEN,
           selectedFile.type,
           modelByMode[AppMode.REMOVE_BACKGROUND]
         );
@@ -464,10 +464,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const base64 = await compressImageForAPI(selectedFile);
           const finalPrompt =
             specificPrompt ||
-            (removeBgType === 'white' ? PROMPT_REMOVE_BACKGROUND_WHITE : PROMPT_REMOVE_BACKGROUND_CHROMAKEY);
+            (removeBgType === 'white' ? PROMPT_REMOVE_BACKGROUND_WHITE : PROMPT_REMOVE_BACKGROUND_GREENSCREEN);
           const rawResult = await editCarImage(base64, finalPrompt, selectedFile.type, modelByMode[AppMode.REMOVE_BACKGROUND]);
           const editedImage =
-            finalPrompt === PROMPT_REMOVE_BACKGROUND_CHROMAKEY
+            finalPrompt === PROMPT_REMOVE_BACKGROUND_GREENSCREEN
               ? await chromaKeyToTransparent(rawResult)
               : rawResult;
           setResultImage(editedImage);
@@ -545,7 +545,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   editCarImage(base64, promptToUse, item.file.type, modelByMode[AppMode.BATCH_EDIT_SHADOW])
                 );
                 const editedImage =
-                  promptToUse === PROMPT_REMOVE_BACKGROUND_CHROMAKEY
+                  promptToUse === PROMPT_REMOVE_BACKGROUND_GREENSCREEN
                     ? await chromaKeyToTransparent(rawResult)
                     : rawResult;
                 completed++;

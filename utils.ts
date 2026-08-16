@@ -257,19 +257,14 @@ export const compositeCarOntoBackground = (
 /**
  * Chroma-key an image: turns pixels close to `keyColor` transparent, with a soft
  * feathered edge to avoid hard jagged silhouettes / color fringing. Used to convert
- * a flat-color backdrop image (from PROMPT_REMOVE_BACKGROUND_CHROMAKEY) into a real
- * transparent PNG — deterministic, unlike asking a generative model for alpha
+ * a flat-color "greenscreen" image (from PROMPT_REMOVE_BACKGROUND_GREENSCREEN) into a
+ * real transparent PNG — deterministic, unlike asking a generative model for alpha
  * directly, which it cannot reliably produce.
- *
- * Default key color is magenta, not the VFX-standard green — green backdrops kept
- * overlapping with the cool, slightly green-tinted reflections common on silver/gray
- * metallic car paint, turning real body panels semi-transparent. Magenta essentially
- * never occurs in vehicle paint, glass, chrome, or tires.
  */
 export const chromaKeyToTransparent = (
   imageDataUrl: string,
-  keyColor: { r: number; g: number; b: number } = { r: 255, g: 0, b: 255 },
-  tolerance: number = 70
+  keyColor: { r: number; g: number; b: number } = { r: 0, g: 255, b: 0 },
+  tolerance: number = 90
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -288,13 +283,6 @@ export const chromaKeyToTransparent = (
       const data = imageData.data;
       const featherRange = tolerance * 0.6;
 
-      // For a magenta key specifically (R and B both high, G low), backdrop spill
-      // on glossy surfaces near the silhouette shows up as R and B rising together
-      // above G — a signature no normal car paint color produces on its own. Kept
-      // pixels get that shared excess pulled back out, suppressing the spill without
-      // touching genuinely red or blue paint (which only elevates one channel).
-      const isMagentaKey = keyColor.g < 64 && keyColor.r > 191 && keyColor.b > 191;
-
       for (let i = 0; i < data.length; i += 4) {
         const dr = data[i] - keyColor.r;
         const dg = data[i + 1] - keyColor.g;
@@ -303,22 +291,9 @@ export const chromaKeyToTransparent = (
 
         if (distance < tolerance) {
           data[i + 3] = 0;
-          continue;
         } else if (distance < tolerance + featherRange) {
           const t = (distance - tolerance) / featherRange;
           data[i + 3] = Math.round(data[i + 3] * t);
-        }
-
-        if (isMagentaKey && data[i + 3] > 0) {
-          // Fully neutralize the shared R/B excess over G, uncapped — a partial
-          // correction leaves a visible magenta/purple fringe along the whole
-          // silhouette on feathered edge pixels, which are often heavily
-          // magenta-biased (blended with near-pure key color right at the edge).
-          const spill = Math.min(data[i] - data[i + 1], data[i + 2] - data[i + 1]);
-          if (spill > 0) {
-            data[i] -= spill;
-            data[i + 2] -= spill;
-          }
         }
       }
 

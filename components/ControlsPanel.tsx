@@ -10,7 +10,7 @@ import {
   PROMPT_A_MIRROR,
   PROMPT_B_DARK,
   PROMPT_REMOVE_BACKGROUND_WHITE,
-  PROMPT_REMOVE_BACKGROUND_CHROMAKEY,
+  PROMPT_REMOVE_BACKGROUND_GREENSCREEN,
   PROMPT_REMOVE_BACKGROUND_INTERIOR,
 } from '../constants/prompts';
 
@@ -407,7 +407,7 @@ const ControlsPanel: React.FC = () => {
                     <Button
                       onClick={() =>
                         handleAction(
-                          removeBgType === 'white' ? PROMPT_REMOVE_BACKGROUND_WHITE : PROMPT_REMOVE_BACKGROUND_CHROMAKEY
+                          removeBgType === 'white' ? PROMPT_REMOVE_BACKGROUND_WHITE : PROMPT_REMOVE_BACKGROUND_GREENSCREEN
                         )
                       }
                       isLoading={loading.isLoading}
@@ -435,7 +435,7 @@ const ControlsPanel: React.FC = () => {
                 <Button
                   onClick={() =>
                     handleAction(
-                      removeBgType === 'white' ? PROMPT_REMOVE_BACKGROUND_WHITE : PROMPT_REMOVE_BACKGROUND_CHROMAKEY
+                      removeBgType === 'white' ? PROMPT_REMOVE_BACKGROUND_WHITE : PROMPT_REMOVE_BACKGROUND_GREENSCREEN
                     )
                   }
                   isLoading={loading.isLoading}
