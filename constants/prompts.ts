@@ -17,8 +17,8 @@ export const PROMPT_SHADOW_FINISH = `TASK: Add realistic contact shadow and refl
 You will receive a single image: a vehicle already placed onto a background scene, both flattened into one image.
 
 STRICT INSTRUCTIONS:
-1) DO NOT move, resize, rotate, or reposition the vehicle in any way. Its placement, scale, and pose are already final and correct.
-2) DO NOT modify the vehicle's model, color, wheels, trim, or any specific details.
+1) ABSOLUTE IDENTITY PRESERVATION: This is a "cut and paste" operation, not a re-drawing. The vehicle in the output MUST be pixel-identical to the vehicle in the input — same model, year, color, wheels, trim, badges, and every add-on or aftermarket part exactly as shown (spoilers/wings, splitters, side skirts, exhaust tips, mirrors, antennas, roof racks, decals, stripes). DO NOT omit, simplify, redraw, or "clean up" any part of the vehicle, even if it looks unusual or aftermarket. If a part is visible in the input, it MUST be visible in the output in the same shape and position.
+2) DO NOT move, resize, rotate, or reposition the vehicle in any way. Its placement, scale, and pose are already final and correct.
 3) Add a realistic, soft contact shadow beneath the vehicle, darkest and sharpest directly under the tires, to visually anchor it to the floor.
 4) If the floor surface looks glossy/reflective, add a subtle mirror reflection of the vehicle's underside.
 5) Adjust ONLY the vehicle's lighting and color balance to match the ambient lighting/color temperature of the background scene, while keeping its original color and features intact.
@@ -26,8 +26,10 @@ STRICT INSTRUCTIONS:
 
 export const PROMPT_REMOVE_BACKGROUND_WHITE = `Actúa como un retocador fotográfico automotriz de alta gama. Tu objetivo es procesar la imagen adjunta del vehículo para adaptarla a un estándar de exhibición de estudio profesional. Ejecuta las siguientes instrucciones con precisión:
 
+0. PRESERVACIÓN ABSOLUTA DE IDENTIDAD: [RESTRICCIÓN CRÍTICA] Esto es una operación de "recorte", no un redibujado. El vehículo del resultado debe ser idéntico al original: mismo modelo, año, color, llantas, tapizado, insignias, y cada parte agregada o de aftermarket exactamente como aparece (alerones/spoilers, splitters, faldones laterales, puntas de escape, espejos, antenas, portaequipajes, calcomanías, franjas). NO omitas, simplifiques, redibujes ni "limpies" ninguna parte del vehículo, aunque parezca inusual o de aftermarket. Si una pieza es visible en el original, debe seguir siendo visible en el resultado, con la misma forma y posición.
+
 1. EXTRACCIÓN Y FONDO:
-- Recorta el vehículo aislando perfectamente todos los bordes (carrocería, neumáticos, espejos).
+- Recorta el vehículo (con todas sus partes intactas según el punto 0) aislando perfectamente todos los bordes (carrocería, neumáticos, espejos, alerones y demás salientes).
 - Elimina el fondo original por completo y reemplázalo por un fondo blanco puro (#FFFFFF).
 - Genera una sombra de contacto suave, difuminada y realista debajo del vehículo para integrarlo al nuevo fondo y evitar que parezca "flotando".
 
@@ -42,12 +44,21 @@ export const PROMPT_REMOVE_BACKGROUND_WHITE = `Actúa como un retocador fotográ
 - Limpia los cristales (parabrisas y ventanas) de reflejos parasitarios del exterior, manteniendo el nivel de tinte polarizado original y la transparencia estructural.
 - Suaviza los contrastes duros en las piezas cromadas, parrilla frontal y llantas de aleación, adaptando su brillo a la nueva iluminación neutra de estudio.`;
 
-export const PROMPT_REMOVE_BACKGROUND_TRANSPARENT = `TASK: Background Removal (Transparent)
+// Gemini's image models cannot reliably emit a true PNG alpha channel — asking for
+// "transparency" directly tends to produce a white/gray fill or, worse, a literal
+// checkerboard pattern painted as pixels (the model copying the standard editor icon
+// for transparency instead of actually being transparent). Chroma-key is far more
+// reliable: ask for a flat, saturated, known color, then key it out ourselves with
+// utils.ts's chromaKeyToTransparent — deterministic, doesn't depend on the model
+// understanding alpha at all.
+export const PROMPT_REMOVE_BACKGROUND_GREENSCREEN = `TASK: Background Removal (Chroma Key Greenscreen)
 INSTRUCTIONS:
-1) Completely isolate the subject (the vehicle) from its original background.
-2) The resulting image MUST have a genuinely transparent background using a real PNG alpha channel — every pixel outside the vehicle must have alpha = 0. This is NOT a white, gray, or checkered matte standing in for transparency; it must be true per-pixel transparency that a compositing tool can detect and blend correctly.
-3) CRITICAL: Do NOT modify the subject in any way. Keep the original colors, size, texture, and details pixel-perfectly consistent with the source image.
-4) Output ONLY the subject with real alpha transparency. No background pixels, no solid-color fill, no matte of any kind allowed outside the vehicle's silhouette.`;
+1) ABSOLUTE IDENTITY PRESERVATION: This is a "cut and paste" extraction, not a re-drawing. The vehicle MUST be pixel-identical to the source — same model, year, color, wheels, trim, badges, and every add-on or aftermarket part exactly as shown (spoilers/wings, splitters, side skirts, exhaust tips, mirrors, antennas, roof racks, decals, stripes). DO NOT omit, simplify, redraw, or "clean up" any part of the vehicle, even if it looks unusual or aftermarket. If a part is visible in the source, it MUST be visible in the output in the same shape and position.
+2) Completely isolate the subject (the vehicle, with every part from instruction 1 intact) from its original background.
+3) Replace the background with a single, perfectly flat, uniform, fully saturated pure green (#00FF00 / RGB 0,255,0) — like a professional chroma-key studio backdrop. No gradient, no shading, no texture, no vignette anywhere in the background.
+4) Do NOT add any shadow, reflection, or contact shading near the vehicle — the background must be pure flat green all the way up to the vehicle's silhouette edge.
+5) Keep the original colors, size, texture, and details pixel-perfectly consistent with the source image.
+6) The vehicle itself must not contain any green tint or spill from the backdrop.`;
 
 export const PROMPT_REMOVE_BACKGROUND_INTERIOR = `TASK: Professional studio photograph of the exact car interior cabin from the source image.
 

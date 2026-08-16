@@ -255,6 +255,57 @@ export const compositeCarOntoBackground = (
 };
 
 /**
+ * Chroma-key an image: turns pixels close to `keyColor` transparent, with a soft
+ * feathered edge to avoid hard jagged silhouettes / color fringing. Used to convert
+ * a flat-color "greenscreen" image (from PROMPT_REMOVE_BACKGROUND_GREENSCREEN) into a
+ * real transparent PNG — deterministic, unlike asking a generative model for alpha
+ * directly, which it cannot reliably produce.
+ */
+export const chromaKeyToTransparent = (
+  imageDataUrl: string,
+  keyColor: { r: number; g: number; b: number } = { r: 0, g: 255, b: 0 },
+  tolerance: number = 90
+): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Could not get canvas context'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      const featherRange = tolerance * 0.6;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const dr = data[i] - keyColor.r;
+        const dg = data[i + 1] - keyColor.g;
+        const db = data[i + 2] - keyColor.b;
+        const distance = Math.sqrt(dr * dr + dg * dg + db * db);
+
+        if (distance < tolerance) {
+          data[i + 3] = 0;
+        } else if (distance < tolerance + featherRange) {
+          const t = (distance - tolerance) / featherRange;
+          data[i + 3] = Math.round(data[i + 3] * t);
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => reject(new Error('No se pudo procesar la imagen para quitar el fondo verde.'));
+    img.src = imageDataUrl;
+  });
+};
+
+/**
  * Share an image via Web Share API (mobile/modern browsers).
  * Falls back to copying the data URL to the clipboard.
  * Returns: 'shared' | 'copied' | 'unsupported'

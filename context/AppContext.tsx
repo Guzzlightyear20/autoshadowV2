@@ -14,6 +14,7 @@ import {
   analyzeCarImageStream,
 } from '../services/geminiService';
 import {
+  chromaKeyToTransparent,
   compositeCarOntoBackground,
   compressImageForAPI,
   fileToBase64,
@@ -28,7 +29,7 @@ import {
   PROMPT_ANALYZE_DEFAULT,
   PROMPT_SHADOW_FINISH,
   PROMPT_REMOVE_BACKGROUND_WHITE,
-  PROMPT_REMOVE_BACKGROUND_TRANSPARENT,
+  PROMPT_REMOVE_BACKGROUND_GREENSCREEN,
   PROMPT_REMOVE_BACKGROUND_INTERIOR,
 } from '../constants/prompts';
 import { DEFAULT_MODEL_BY_MODE, isValidModel } from '../constants/models';
@@ -281,12 +282,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (async () => {
       try {
         const base64 = await compressImageForAPI(selectedFile);
-        const cutout = await editCarImage(
+        const greenscreen = await editCarImage(
           base64,
-          PROMPT_REMOVE_BACKGROUND_TRANSPARENT,
+          PROMPT_REMOVE_BACKGROUND_GREENSCREEN,
           selectedFile.type,
           modelByMode[AppMode.REMOVE_BACKGROUND]
         );
+        const cutout = await chromaKeyToTransparent(greenscreen);
         if (!cancelled) setCarCutoutUrl(cutout);
       } catch (error) {
         if (!cancelled) {
@@ -462,8 +464,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const base64 = await compressImageForAPI(selectedFile);
           const finalPrompt =
             specificPrompt ||
-            (removeBgType === 'white' ? PROMPT_REMOVE_BACKGROUND_WHITE : PROMPT_REMOVE_BACKGROUND_TRANSPARENT);
-          const editedImage = await editCarImage(base64, finalPrompt, selectedFile.type, modelByMode[AppMode.REMOVE_BACKGROUND]);
+            (removeBgType === 'white' ? PROMPT_REMOVE_BACKGROUND_WHITE : PROMPT_REMOVE_BACKGROUND_GREENSCREEN);
+          const rawResult = await editCarImage(base64, finalPrompt, selectedFile.type, modelByMode[AppMode.REMOVE_BACKGROUND]);
+          const editedImage =
+            finalPrompt === PROMPT_REMOVE_BACKGROUND_GREENSCREEN
+              ? await chromaKeyToTransparent(rawResult)
+              : rawResult;
           setResultImage(editedImage);
           saveToHistory(editedImage, null, finalPrompt, selectedFile.name);
 
@@ -535,9 +541,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             async item => {
               try {
                 const base64 = await compressImageForAPI(item.file);
-                const editedImage = await retryWithBackoff(() =>
+                const rawResult = await retryWithBackoff(() =>
                   editCarImage(base64, promptToUse, item.file.type, modelByMode[AppMode.BATCH_EDIT_SHADOW])
                 );
+                const editedImage =
+                  promptToUse === PROMPT_REMOVE_BACKGROUND_GREENSCREEN
+                    ? await chromaKeyToTransparent(rawResult)
+                    : rawResult;
                 completed++;
                 setLoading({ isLoading: true, message: `Procesando: ${completed} / ${total} completadas` });
                 setResultBatchItems(prev =>
