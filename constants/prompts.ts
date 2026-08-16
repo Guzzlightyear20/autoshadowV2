@@ -56,9 +56,10 @@ INSTRUCTIONS:
 1) ABSOLUTE IDENTITY PRESERVATION: This is a "cut and paste" extraction, not a re-drawing. The vehicle MUST be pixel-identical to the source — same model, year, color, wheels, trim, badges, and every add-on or aftermarket part exactly as shown (spoilers/wings, splitters, side skirts, exhaust tips, mirrors, antennas, roof racks, decals, stripes). DO NOT omit, simplify, redraw, or "clean up" any part of the vehicle, even if it looks unusual or aftermarket. If a part is visible in the source, it MUST be visible in the output in the same shape and position.
 2) Completely isolate the subject (the vehicle, with every part from instruction 1 intact) from its original background.
 3) Replace the background with a single, perfectly flat, uniform, fully saturated pure green (#00FF00 / RGB 0,255,0) — like a professional chroma-key studio backdrop. No gradient, no shading, no texture, no vignette anywhere in the background.
-4) Do NOT add any shadow, reflection, or contact shading near the vehicle — the background must be pure flat green all the way up to the vehicle's silhouette edge.
-5) Keep the original colors, size, texture, and details pixel-perfectly consistent with the source image.
-6) The vehicle itself must not contain any green tint or spill from the backdrop.`;
+4) GLASS AND WINDOWS: This is the hardest and most error-prone part — pay special attention. All windows, windshield, and any other glass surface must ALSO show the same pure flat green behind them, exactly like the rest of the background. Do NOT leave any trace, reflection, silhouette, or blended pixels of the original background (buildings, sky, interior of other rooms, trees, other objects) visible through or on the glass. Treat glass exactly like empty background: if the original background is visible through a window, replace it with pure green just like everywhere else. The vehicle's own interior (seats, dashboard) may remain faintly visible through the glass as normal, but nothing from OUTSIDE the vehicle should remain.
+5) Do NOT add any shadow, reflection, or contact shading near the vehicle — the background must be pure flat green all the way up to the vehicle's silhouette edge.
+6) Keep the original colors, size, texture, and details pixel-perfectly consistent with the source image.
+7) The vehicle itself must not contain any green tint or spill from the backdrop.`;
 
 export const PROMPT_REMOVE_BACKGROUND_INTERIOR = `TASK: Professional studio photograph of the exact car interior cabin from the source image.
 
