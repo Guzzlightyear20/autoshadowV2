@@ -310,11 +310,14 @@ export const chromaKeyToTransparent = (
         }
 
         if (isMagentaKey && data[i + 3] > 0) {
+          // Fully neutralize the shared R/B excess over G, uncapped — a partial
+          // correction leaves a visible magenta/purple fringe along the whole
+          // silhouette on feathered edge pixels, which are often heavily
+          // magenta-biased (blended with near-pure key color right at the edge).
           const spill = Math.min(data[i] - data[i + 1], data[i + 2] - data[i + 1]);
           if (spill > 0) {
-            const correction = Math.min(spill, 60);
-            data[i] -= correction;
-            data[i + 2] -= correction;
+            data[i] -= spill;
+            data[i + 2] -= spill;
           }
         }
       }
