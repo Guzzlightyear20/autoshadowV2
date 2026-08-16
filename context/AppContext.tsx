@@ -25,6 +25,7 @@ import { usePromptLibrary } from '../hooks/usePromptLibrary';
 import {
   PROMPT_A_MIRROR,
   PROMPT_B_DARK,
+  PROMPT_ANALYZE_DEFAULT,
   PROMPT_SHADOW_FINISH,
   PROMPT_REMOVE_BACKGROUND_WHITE,
   PROMPT_REMOVE_BACKGROUND_TRANSPARENT,
@@ -500,7 +501,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else if (mode === AppMode.ANALYZE) {
           if (!selectedFile) throw new Error('Selecciona una imagen primero.');
           const base64 = await compressImageForAPI(selectedFile);
-          const analysisPrompt = promptToUse || 'Analiza este vehículo: marca, modelo estimado, color y características visibles.';
+          const analysisPrompt = promptToUse || PROMPT_ANALYZE_DEFAULT;
 
           setResultText('');
           setLoading({ isLoading: false, message: '' });
@@ -715,7 +716,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (newMode === AppMode.GENERATE) {
       setPrompt('Un auto deportivo futurista color plata conduciendo bajo la lluvia en una ciudad cyberpunk neon.');
     } else if (newMode === AppMode.ANALYZE) {
-      setPrompt('Analiza este vehículo: marca, modelo estimado, y estilo.');
+      setPrompt(PROMPT_ANALYZE_DEFAULT);
     } else {
       setPrompt('');
     }
